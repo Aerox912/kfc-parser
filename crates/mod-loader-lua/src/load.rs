@@ -1,6 +1,6 @@
 use std::{fs::File, io::BufReader, rc::Rc};
 
-use kfc::{container::{KFCCursor, KFCFile, KFCReader, KFCReaderOptions, KFCWriteOptions, KFCWriter}, reflection::TypeRegistry};
+use kfc::{container::{KFCCursor, KFCFile, KFCReader, KFCReaderOptions, KFCWriteLock, KFCWriteOptions, KFCWriter}, reflection::TypeRegistry};
 
 use crate::{alias::{Path, PathBuf}, log::{debug, error, info, warn}};
 
@@ -52,8 +52,9 @@ pub fn create_writer(
     file_name: &str,
     type_registry: &Rc<TypeRegistry>,
     ref_file: &Rc<KFCFile>,
+    transaction: KFCWriteLock,
 ) -> Result<KFCWriter<Rc<KFCFile>, Rc<TypeRegistry>>, ()> {
-    let writer = match KFCWriter::new_incremental_with_options(
+    let writer = match KFCWriter::new_incremental_with_lock(
         dir,
         file_name,
         ref_file.clone(),
@@ -61,7 +62,8 @@ pub fn create_writer(
         KFCWriteOptions {
             overwrite_containers: true,
             ..Default::default()
-        }
+        },
+        transaction,
     ) {
         Ok(writer) => writer,
         Err(e) => {
@@ -78,65 +80,42 @@ pub fn create_writer(
     Ok(writer)
 }
 
-pub fn create_backup(
-    kfc_path: impl AsRef<Path>
-) -> Result<PathBuf, ()> {
+#[cfg(test)]
+fn create_backup(kfc_path: impl AsRef<Path>) -> Result<PathBuf, ()> {
+    let transaction = KFCWriteLock::acquire(kfc_path.as_ref().as_std_path()).map_err(|_| ())?;
+    create_backup_locked(kfc_path, &transaction)
+}
+
+pub fn create_backup_locked(kfc_path: impl AsRef<Path>, transaction: &KFCWriteLock) -> Result<PathBuf, ()> {
     let path = kfc_path.as_ref();
-    let mut bak_path = path.to_string();
-    bak_path.push_str(".bak");
-    let bak_path = Path::new(&bak_path);
-
-    if bak_path.exists() && !validate_backup(path, bak_path)? {
-        warn!(
-            path = ?path,
-            backup_path = ?bak_path,
-            "Backup file is not compatible with the current KFC file, creating a new backup.",
-        );
-
-        if !bak_path.is_file() {
-            error!(
-                path = ?bak_path,
-                "Backup path is not a file, please remove it manually.",
-            );
-
-            return Err(());
-        }
-
-        if let Err(e) = std::fs::remove_file(bak_path) {
-            error!(
-                path = ?bak_path,
-                error = %e,
-                "Failed to remove old backup file",
-            );
-
-            return Err(());
-        }
+    transaction.ensure_path(path.as_std_path()).map_err(|e| {
+        error!(error = %e, "Invalid backup transaction");
+    })?;
+    let bak_path = PathBuf::from(format!("{path}.bak"));
+    if bak_path.exists() && validate_backup(path, &bak_path)? {
+        return Ok(bak_path);
     }
-
-    if !bak_path.exists() {
-        if let Err(e) = std::fs::copy(path, bak_path) {
-            error!(
-                path = ?bak_path,
-                error = %e,
-                "Failed to create backup file",
-            );
-
-            return Err(());
-        } else {
-            info!(
-                path = ?bak_path,
-                "Backup file created successfully",
-            );
-        }
-    }
-
-    Ok(bak_path.to_path_buf())
+    // Read the complete replacement before touching the previous backup.
+    let bytes = std::fs::read(path).map_err(|e| {
+        error!(error = %e, path = ?path, "Failed to read backup source");
+    })?;
+    KFCFile::get_version_tag(path).map_err(|e| {
+        error!(error = %e, path = ?path, "Invalid backup source");
+    })?;
+    kfc::container::replace_file_atomically(bak_path.as_std_path(), &bytes).map_err(|e| {
+        error!(error = %e, path = ?bak_path, "Failed to publish backup; previous backup preserved");
+    })?;
+    info!(path = ?bak_path, "Backup file created successfully");
+    Ok(bak_path)
 }
 
 pub fn restore_backup(
     kfc_path: impl AsRef<Path>,
 ) -> Result<(), ()> {
     let path = kfc_path.as_ref();
+    let _write_lock = kfc::container::KFCWriteLock::acquire(path.as_std_path()).map_err(|e| {
+        error!(error = %e, "Could not lock game data for restoration");
+    })?;
     let mut bak_path = path.to_string();
     bak_path.push_str(".bak");
     let bak_path = Path::new(&bak_path);
@@ -166,7 +145,9 @@ pub fn restore_backup(
         return Err(());
     }
 
-    if let Err(e) = std::fs::copy(bak_path, path) {
+    let result = std::fs::read(bak_path).and_then(|bytes|
+        kfc::container::replace_file_atomically(path.as_std_path(), &bytes));
+    if let Err(e) = result {
         error!(
             path = ?path,
             backup_path = ?bak_path,
@@ -458,6 +439,56 @@ mod tests {
 
     fn read_version(path: &Path) -> String {
         KFCFile::get_version_tag(path).unwrap()
+    }
+
+    #[test]
+    fn competing_backup_cannot_capture_an_in_progress_publication() {
+        let dir = TempDir::new("backup-competing");
+        let path = dir.0.join("test.kfc");
+        write_kfc(&path, "1.0");
+        let transaction = kfc::container::KFCWriteLock::acquire(path.as_std_path()).unwrap();
+        let other_path = path.clone();
+        let result = std::thread::spawn(move || create_backup(&other_path)).join().unwrap();
+        assert!(result.is_err(), "backup must not read a transaction's changing directory");
+        assert!(!dir.0.join("test.kfc.bak").exists());
+        drop(transaction);
+        assert!(create_backup(&path).is_ok());
+    }
+
+    #[test]
+    fn restore_and_backup_cannot_interleave_publication_and_cache_recording() {
+        let dir = TempDir::new("publication-cache");
+        let path = dir.0.join("test.kfc");
+        write_kfc(&path, "test-1.0");
+        File::create(dir.0.join("test.kfc_resources")).unwrap();
+        KFCWriter::<KFCFile, _>::new(&dir.0, "test", TypeRegistry::default(), "test-1.0")
+            .unwrap().finalize().unwrap();
+        let baseline = KFCFile::from_path(&path, false).unwrap();
+        let vanilla = std::fs::read(&path).unwrap();
+        let transaction = KFCWriteLock::acquire(path.as_std_path()).unwrap();
+        let backup = create_backup_locked(&path, &transaction).unwrap();
+        let mut writer = KFCWriter::new_incremental_with_lock(
+            &dir.0, "test", baseline, TypeRegistry::default(),
+            KFCWriteOptions::default(), transaction.clone(),
+        ).unwrap();
+        writer.write_content(&kfc::guid::ContentHash::from_data(b"patch"), b"patch").unwrap();
+        writer.finalize().unwrap();
+        let published = std::fs::read(&path).unwrap();
+        assert_ne!(published, vanilla);
+        let other_path = path.clone();
+        assert!(std::thread::spawn(move || restore_backup(other_path)).join().unwrap().is_err());
+        let other_path = path.clone();
+        assert!(std::thread::spawn(move || create_backup(other_path)).join().unwrap().is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), published);
+        assert_eq!(std::fs::read(&backup).unwrap(), vanilla);
+        let mut cache = crate::cache::FileStateCache::default();
+        cache.track_game_files(&dir.0);
+        cache.write(&dir.0);
+        drop(transaction);
+        assert!(create_backup(&path).is_ok());
+        assert_eq!(std::fs::read(&backup).unwrap(), vanilla);
+        assert!(restore_backup(&path).is_ok());
+        assert_eq!(std::fs::read(&path).unwrap(), vanilla);
     }
 
     #[test]

@@ -49,6 +49,11 @@ pub fn run(
 ) -> anyhow::Result<RunResult> {
     info!("Running lua with options: {:?}", args);
 
+    // One lease covers cache inspection, backup, reads, publication and cache recording.
+    // The writer owns a clone; finalize must not let a restore interleave before the cache.
+    let kfc_path = env.game_dir().join(&args.file_name).with_extension("kfc");
+    let transaction = kfc::container::KFCWriteLock::acquire(kfc_path.as_std_path())?;
+
     // check cache if files have changed
 
     let cache_diff = if !args.options.skip_cache {
@@ -82,6 +87,7 @@ pub fn run(
         env.clone(),
         args,
         &cache_diff,
+        transaction.clone(),
     ) {
         Ok(context) => context,
         Err(_) => anyhow::bail!("Failed to create AppState"),

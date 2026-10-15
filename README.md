@@ -1,4 +1,16 @@
-# Enshrouded Modding Tools
+# ESM compatibility for Enshrouded Modding Tools
+
+This ESM-maintained fork carries the Enshrouded 1.0 KFC4 compatibility work and
+transaction/error-handling fixes for Brabb3l's EML. It retains EML's technical
+identifiers, upstream authorship and GPL-3.0-or-later license. It is a compatibility
+component for the separate ESM Loader project.
+
+**Candidate status:** copied client data for build 25936191 passes offline patch
+and serialized readback checks. Native startup, gameplay and dedicated-server
+acceptance remain unverified. Read [1.0 compatibility and evidence](docs/ESM-1.0-COMPATIBILITY.md)
+before using the upstream installation instructions below.
+
+## Upstream project
 
 A collection of unofficial tools for modding the game [Enshrouded](https://store.steampowered.com/app/1203620/Enshrouded/).
 

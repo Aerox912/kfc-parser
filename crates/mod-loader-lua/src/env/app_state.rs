@@ -3,7 +3,7 @@ use std::{cell::{Cell, RefCell, RefMut}, collections::{HashMap, hash_map::{self,
 use bitflags::bitflags;
 use mod_loader::ModEnvironment;
 use once_cell::unsync::OnceCell;
-use kfc::{container::{KFCCursor, KFCFile, KFCReader, KFCWriter}, guid::{ContentHash, ResourceId}, reflection::{LookupKey, TypeHandle, TypeIndex, TypeRegistry}, resource::value::Value};
+use kfc::{container::{KFCCursor, KFCFile, KFCReader, KFCWriteLock, KFCWriter}, guid::{ContentHash, ResourceId}, reflection::{LookupKey, TypeHandle, TypeIndex, TypeRegistry}, resource::value::Value};
 
 use crate::{RunArgs, alias::{MappedValue, PathBuf}, cache::CacheDiff, env::{Type, game::value::is_dirty_lua_value, value::{convert_lua_to_value, convert_value_to_lua, validate_and_clone_lua_value}}, log::warn, lua::{LuaError, LuaValue}};
 
@@ -49,6 +49,7 @@ impl AppState {
         env: ModEnvironment,
         args: RunArgs,
         cache_diff: &CacheDiff,
+        transaction: KFCWriteLock,
     ) -> Result<Self, ()> {
         let game_dir = env.game_dir();
         let cache_dir = env.cache_dir();
@@ -123,11 +124,11 @@ impl AppState {
         let kfc_path = game_dir
             .join(file_name)
             .with_extension("kfc");
-        let bak_path = crate::load::create_backup(&kfc_path)?;
+        let bak_path = crate::load::create_backup_locked(&kfc_path, &transaction)?;
 
         let ref_file = crate::load::load_kfc_file(&bak_path)?;
         let reader = crate::load::create_reader(game_dir, file_name)?;
-        let writer = crate::load::create_writer(game_dir, file_name, &type_registry, &ref_file)?;
+        let writer = crate::load::create_writer(game_dir, file_name, &type_registry, &ref_file, transaction)?;
 
         Ok(Self {
             env,

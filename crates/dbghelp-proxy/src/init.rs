@@ -3,16 +3,14 @@ use std::path::PathBuf;
 use camino::{Utf8Path, Utf8PathBuf};
 use mod_loader::{lua::{self, RunArgs, RunOptions}, runtime, Config, ModEnvironment};
 
-use crate::{log::{error, warn}, logging};
+use crate::{log::error, logging};
 
-pub fn init(config: Config) {
+pub fn init(config: Config) -> Result<(), ()> {
     logging::setup();
 
-    // Errors are logged where they occur. The game must still be able to
-    // start, so a failure here only skips the mod loader.
-    if load_mods(config).is_err() {
-        warn!("Mod loading failed, starting the game without applying mods");
-    }
+    load_mods(config).map_err(|()| {
+        error!("Required mod loading failed; game startup is blocked");
+    })
 }
 
 pub fn deinit() {
@@ -102,15 +100,8 @@ fn load_mods(config: Config) -> Result<(), ()> {
                 "Error running mod loader"
             );
 
-            // A failed run may have overwritten data that the currently
-            // patched KFC file still references, so restore the original
-            // KFC file to make sure the game starts with consistent data.
-            if lua::restore(&current_dir, &file_name) {
-                warn!("Restored the original game data");
-            } else {
-                warn!("Could not restore the original game data");
-            }
-
+            // The incremental writer preserves the previously published dataset.
+            // Do not silently replace it with vanilla data and lose the user's mods.
             return Err(());
         }
     };

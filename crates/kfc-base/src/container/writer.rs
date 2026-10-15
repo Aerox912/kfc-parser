@@ -1,8 +1,8 @@
-use std::{borrow::Borrow, collections::HashMap, fs::File, io::{BufWriter, Cursor, Seek, SeekFrom, Write}, path::{Path, PathBuf}};
+use std::{borrow::Borrow, collections::HashSet, fs::File, io::{BufReader, BufWriter, Cursor, Seek, SeekFrom, Write}, path::{Path, PathBuf}, sync::Arc};
 
-use crate::{Hash32, container::header::ResourceChunkInfo, guid::{ContentHash, ResourceId}, io::{WriteExt, WriteSeekExt}, reflection::TypeRegistry};
+use crate::{container::header::ResourceChunkInfo, guid::{ContentHash, ResourceId}, io::{WriteExt, WriteSeekExt}, reflection::TypeRegistry};
 
-use super::{header::{ContentEntry, ContainerInfo, ResourceEntry}, KFCFile, KFCReadError, KFCWriteError, StaticMapBuilder};
+use super::{header::{ContentEntry, ContainerInfo, KFCHeader, ResourceEntry}, KFCFile, KFCFormat, KFCReadError, KFCWriteError, StaticMapBuilder};
 
 const RESOURCE_ALIGNMENT: u64 = 16;
 const CONTENT_ALIGNMENT: u64 = 4096;
@@ -15,7 +15,9 @@ pub struct KFCWriter<F, T> {
     path: PathBuf,
     file_name: String,
 
-    file: File,
+    kfc_path: PathBuf,
+    _write_lock: KFCWriteLock,
+    protected_containers: HashSet<usize>,
 
     chunk_writer: Cursor<Vec<u8>>,
     resource_writer: BufWriter<File>,
@@ -25,6 +27,7 @@ pub struct KFCWriter<F, T> {
 
     container_writers: Vec<ContainerWriter>,
 
+    format: KFCFormat,
     game_version: String,
     resources: StaticMapBuilder<ResourceId, ResourceEntry>,
     contents: StaticMapBuilder<ContentHash, ContentEntry>,
@@ -35,6 +38,58 @@ pub struct KFCWriter<F, T> {
 
 struct IncrementalData<F> {
     reference_file: F,
+}
+
+/// Cooperative lock retained through publication. The sidecar is never removed:
+/// deleting a lock file can let another process lock a different inode.
+#[derive(Clone)]
+pub struct KFCWriteLock(Arc<LockedDataset>);
+
+struct LockedDataset {
+    file: File,
+    path: PathBuf,
+}
+
+impl KFCWriteLock {
+    pub fn acquire(kfc_path: &Path) -> std::io::Result<Self> {
+        let path = Self::dataset_path(kfc_path)?;
+        let mut lock_path = path.as_os_str().to_os_string();
+        lock_path.push(".eml-lock");
+        let file = File::options().read(true).write(true).create(true).truncate(false).open(lock_path)?;
+        fs2::FileExt::try_lock_exclusive(&file)?;
+        Ok(Self(Arc::new(LockedDataset { file, path })))
+    }
+
+    fn dataset_path(path: &Path) -> std::io::Result<PathBuf> {
+        let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+        let name = path.file_name().ok_or_else(|| std::io::Error::other("dataset has no file name"))?;
+        Ok(parent.canonicalize()?.join(name))
+    }
+
+    /// Prevent using a transaction lease to write another dataset.
+    pub fn ensure_path(&self, path: &Path) -> std::io::Result<()> {
+        if Self::dataset_path(path)? != self.0.path {
+            return Err(std::io::Error::other("transaction lock belongs to another dataset"));
+        }
+        Ok(())
+    }
+}
+
+impl Drop for LockedDataset {
+    fn drop(&mut self) {
+        let _ = fs2::FileExt::unlock(&self.file);
+    }
+}
+
+/// Publish a complete directory or backup in one same-filesystem replacement.
+/// An error leaves the old destination intact; temporary files clean themselves up.
+pub fn replace_file_atomically(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let parent = path.parent().ok_or_else(|| std::io::Error::other("destination has no parent"))?;
+    let mut staged = tempfile::NamedTempFile::new_in(parent)?;
+    staged.write_all(bytes)?;
+    staged.as_file().sync_all()?;
+    staged.persist(path).map_err(|error| error.error)?;
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -105,7 +160,9 @@ where
             file_name.as_ref(),
             options.kfc_extension
         ));
-        let file = File::options().write(true).read(true).open(&kfc_path)?;
+        let write_lock = KFCWriteLock::acquire(&kfc_path)?;
+        let file = File::open(&kfc_path)?;
+        let format = KFCHeader::read(&mut BufReader::new(&file))?.format;
 
         let resources_path = path.as_ref().join(format!(
             "{}.{}",
@@ -121,7 +178,9 @@ where
             path: path.as_ref().to_path_buf(),
             file_name: file_name.as_ref().to_string(),
 
-            file,
+            kfc_path,
+            _write_lock: write_lock,
+            protected_containers: HashSet::new(),
 
             chunk_writer: Cursor::new(Vec::new()),
             resource_writer,
@@ -131,6 +190,7 @@ where
 
             container_writers: Vec::new(),
 
+            format,
             game_version: game_version.as_ref().to_string(),
             resources: StaticMapBuilder::default(),
             contents: StaticMapBuilder::default(),
@@ -168,7 +228,25 @@ where
             file_name.as_ref(),
             options.kfc_extension
         ));
-        let current_file = KFCFile::from_path(&kfc_path, true)?;
+        let write_lock = KFCWriteLock::acquire(&kfc_path)?;
+        Self::new_incremental_with_lock(path, file_name, reference_file, type_registry, options, write_lock)
+    }
+
+    /// Join an existing transaction. Retain another lease through backup and cache publication.
+    pub fn new_incremental_with_lock(
+        path: impl AsRef<Path>,
+        file_name: impl AsRef<str>,
+        reference_file: F,
+        type_registry: T,
+        options: KFCWriteOptions,
+        write_lock: KFCWriteLock,
+    ) -> Result<Self, KFCReadError> {
+        let kfc_path = path.as_ref().join(format!("{}.{}", file_name.as_ref(), options.kfc_extension));
+        write_lock.ensure_path(&kfc_path)?;
+        let current_file = KFCFile::from_path(&kfc_path, false)?;
+        let format = current_file.format();
+        let protected_containers = current_file.contents().values().iter()
+            .map(|entry| entry.container_index).collect();
 
         let file = reference_file.borrow();
 
@@ -176,8 +254,6 @@ where
         let contents = file.contents().as_builder();
 
         drop(current_file);
-
-        let file = File::options().write(true).read(true).open(&kfc_path)?;
 
         let resources_path = path.as_ref().join(format!(
             "{}.{}",
@@ -187,13 +263,6 @@ where
         let resource_file = File::options().write(true).open(&resources_path)?;
         let mut resource_writer = BufWriter::new(resource_file);
 
-        let previous_resource_size = reference_file.borrow()
-            .resource_chunks()
-            .iter()
-            .map(|chunk| chunk.offset + chunk.size)
-            .max()
-            .unwrap_or(0);
-
         let previous_uncompressed_size = reference_file.borrow()
             .resource_chunks()
             .iter()
@@ -201,7 +270,10 @@ where
             .max()
             .unwrap_or(0);
 
-        resource_writer.seek(SeekFrom::Start(previous_resource_size))?;
+        // Old published chunks may extend beyond the vanilla reference. Never
+        // overwrite them while preparing a new directory, even on a failed run.
+        resource_writer.seek(SeekFrom::End(0))?;
+        resource_writer.align(RESOURCE_CHUNK_ALIGNMENT as usize)?;
 
         Ok(Self {
             type_registry,
@@ -209,7 +281,9 @@ where
             path: path.as_ref().into(),
             file_name: file_name.as_ref().to_string(),
 
-            file,
+            kfc_path,
+            _write_lock: write_lock,
+            protected_containers,
             chunk_writer: Cursor::new(Vec::new()),
             resource_writer,
             uncompressed_offset: previous_uncompressed_size,
@@ -218,6 +292,7 @@ where
 
             container_writers: Vec::new(),
 
+            format,
             game_version: reference_file.borrow().game_version().to_string(),
             resources,
             contents,
@@ -376,10 +451,11 @@ where
         for container_writer in &mut self.container_writers {
             container_writer.flush()?;
 
-            containers.push(ContainerInfo {
+            containers.resize_with(containers.len().max(container_writer.index + 1), ContainerInfo::default);
+            containers[container_writer.index] = ContainerInfo {
                 size: container_writer.position()?,
                 count: container_writer.count,
-            });
+            };
         }
 
         // make sure to have a power of two container files
@@ -389,7 +465,7 @@ where
         while containers.len() < required_container_count {
             let path = self.dat_path(containers.len());
 
-            if !path.exists() || self.options.truncate_containers {
+            if !path.exists() || (self.incremental_data.is_none() && self.options.truncate_containers) {
                 File::create(path)?;
             }
 
@@ -409,9 +485,10 @@ where
 
         // header construction
 
-        let mut file_writer = BufWriter::new(&mut self.file);
+        let mut file_writer = Cursor::new(Vec::new());
         let mut file = KFCFile::default();
 
+        file.set_format(self.format);
         file.set_game_version(self.game_version);
         file.set_resources(
             self.resources.build(),
@@ -424,6 +501,9 @@ where
         file.set_resource_chunks(chunks);
 
         file.write(&mut file_writer)?;
+        self.resource_writer.flush()?;
+        self.resource_writer.get_ref().sync_all()?;
+        replace_file_atomically(&self.kfc_path, file_writer.get_ref())?;
 
         Ok(())
     }
@@ -454,7 +534,13 @@ where
         let base_index = self.incremental_data.as_ref()
             .map(|data| data.reference_file.borrow().containers().len())
             .unwrap_or(0);
-        let next_index = base_index + self.container_writers.len();
+        let mut next_index = self.container_writers.last().map(|writer| writer.index + 1).unwrap_or(base_index);
+        while self.protected_containers.contains(&next_index) {
+            next_index += 1;
+        }
+        if next_index > u16::MAX as usize {
+            return Err(std::io::Error::other("KFC content container index limit reached"));
+        }
         let path = self.dat_path(next_index);
 
         if !self.options.overwrite_containers && path.exists() {
@@ -481,6 +567,100 @@ struct ContainerWriter {
     writer: BufWriter<File>,
 }
 
+#[cfg(test)]
+mod transaction_tests {
+    use super::*;
+
+    fn fixture() -> (tempfile::TempDir, KFCFile) {
+        let dir = tempfile::tempdir().unwrap();
+        let mut baseline = KFCFile::default();
+        baseline.set_game_version("test-1.0".into());
+        baseline.write(&mut File::create(dir.path().join("test.kfc")).unwrap()).unwrap();
+        File::create(dir.path().join("test.kfc_resources")).unwrap();
+        (dir, baseline)
+    }
+
+    fn writer(dir: &Path, baseline: KFCFile) -> KFCWriter<KFCFile, TypeRegistry> {
+        KFCWriter::new_incremental_with_options(dir, "test", baseline, TypeRegistry::default(), KFCWriteOptions {
+            overwrite_containers: true, ..Default::default()
+        }).unwrap()
+    }
+
+    #[test]
+    fn failed_rebuild_preserves_published_content() {
+        let (dir, baseline) = fixture();
+        let mut first = writer(dir.path(), baseline.clone());
+        first.write_content(&ContentHash::from_data(b"accepted"), b"accepted").unwrap();
+        first.finalize().unwrap();
+        let published = std::fs::read(dir.path().join("test.kfc")).unwrap();
+        let content = std::fs::read(dir.path().join("test_000.dat")).unwrap();
+        let mut failed = writer(dir.path(), baseline);
+        failed.write_content(&ContentHash::from_data(b"rejected"), b"rejected").unwrap();
+        drop(failed);
+        assert_eq!(std::fs::read(dir.path().join("test.kfc")).unwrap(), published);
+        assert_eq!(std::fs::read(dir.path().join("test_000.dat")).unwrap(), content,
+            "a failed run overwrote bytes referenced by the published directory");
+    }
+
+    #[test]
+    fn failed_rebuild_preserves_published_resources() {
+        let (dir, baseline) = fixture();
+        let mut first = writer(dir.path(), baseline.clone());
+        first.chunk_writer.write_all(b"accepted resource bytes").unwrap();
+        first.finalize().unwrap();
+        let accepted = std::fs::read(dir.path().join("test.kfc_resources")).unwrap();
+        let mut failed = writer(dir.path(), baseline);
+        failed.chunk_writer.write_all(b"rejected resource bytes").unwrap();
+        failed.submit_resource_data().unwrap();
+        drop(failed);
+        let after = std::fs::read(dir.path().join("test.kfc_resources")).unwrap();
+        assert!(after.starts_with(&accepted), "a failed run overwrote a published resource chunk");
+    }
+
+    #[test]
+    fn simultaneous_incremental_writers_are_rejected() {
+        let (dir, baseline) = fixture();
+        let first = writer(dir.path(), baseline.clone());
+        let second = KFCWriter::new_incremental(dir.path(), "test", baseline, TypeRegistry::default());
+        assert!(second.is_err(), "a second writer must not race directory publication");
+        drop(first);
+    }
+
+    #[test]
+    fn transaction_lease_cannot_authorize_another_dataset() {
+        let (first_dir, _) = fixture();
+        let (second_dir, baseline) = fixture();
+        let lock = KFCWriteLock::acquire(&first_dir.path().join("test.kfc")).unwrap();
+        assert!(KFCWriter::new_incremental_with_lock(
+            second_dir.path(), "test", baseline, TypeRegistry::default(),
+            KFCWriteOptions::default(), lock,
+        ).is_err());
+    }
+
+    #[test]
+    fn unreadable_existing_header_is_rejected() {
+        let (dir, _) = fixture();
+        std::fs::write(dir.path().join("test.kfc"), b"broken").unwrap();
+        let result = KFCWriter::<KFCFile, _>::new(dir.path(), "test", TypeRegistry::default(), "test-1.0");
+        assert!(result.is_err(), "an unreadable existing header must not silently select KFC4");
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn failed_publication_preserves_directory() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let (dir, baseline) = fixture();
+        let path = dir.path().join("test.kfc");
+        let before = std::fs::read(&path).unwrap();
+        let mut candidate = writer(dir.path(), baseline);
+        candidate.write_content(&ContentHash::from_data(b"new"), b"new").unwrap();
+        // Permit readers/writers, but deny replacement while the handle is live.
+        let _reader = File::options().read(true).share_mode(3).open(&path).unwrap();
+        assert!(candidate.finalize().is_err());
+        assert_eq!(std::fs::read(path).unwrap(), before);
+    }
+}
+
 impl ContainerWriter {
 
     #[inline]
@@ -505,7 +685,8 @@ impl ContainerWriter {
 
     #[inline]
     fn flush(&mut self) -> std::io::Result<()> {
-        self.writer.flush()
+        self.writer.flush()?;
+        self.writer.get_ref().sync_all()
     }
 
 }

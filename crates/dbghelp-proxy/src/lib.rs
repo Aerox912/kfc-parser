@@ -548,7 +548,14 @@ extern "system" fn DllMain(
                         crate::enable_console();
                     }
 
-                    init::init(config);
+                    if init::init(config).is_err() {
+                        unsafe {
+                            MessageBoxA(None,
+                                PCSTR::from_raw(c"Required mods failed to load. Startup was stopped. See the EML log for details.".as_ptr() as _),
+                                PCSTR::from_raw(c"ESM EML compatibility".as_ptr() as _), MB_OK);
+                        }
+                        return BOOL(0);
+                    }
                 }
                 Err(e) => {
                     panic!("Failed to initialize dbghelp proxy: {e}");
@@ -556,7 +563,12 @@ extern "system" fn DllMain(
             }
         }
         DLL_PROCESS_DETACH => {
-            init::deinit();
+            // A non-null lpReserved means the process is terminating. Other threads
+            // are already gone and thread-local storage (used by logging) may
+            // already be destroyed, so do not run any cleanup in that case.
+            if _reserved.is_null() {
+                init::deinit();
+            }
         }
         _ => {}
     }

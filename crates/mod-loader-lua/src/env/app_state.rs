@@ -3,7 +3,7 @@ use std::{cell::{Cell, RefCell, RefMut}, collections::{HashMap, hash_map::{self,
 use bitflags::bitflags;
 use mod_loader::ModEnvironment;
 use once_cell::unsync::OnceCell;
-use kfc::{container::{KFCCursor, KFCFile, KFCReader, KFCWriter}, guid::{ContentHash, ResourceId}, reflection::{LookupKey, TypeHandle, TypeIndex, TypeRegistry}, resource::value::Value};
+use kfc::{container::{KFCCursor, KFCFile, KFCReader, KFCWriteLock, KFCWriter}, guid::{ContentHash, ResourceId}, reflection::{LookupKey, TypeHandle, TypeIndex, TypeRegistry}, resource::value::Value};
 
 use crate::{RunArgs, alias::{MappedValue, PathBuf}, cache::CacheDiff, env::{Type, game::value::is_dirty_lua_value, value::{convert_lua_to_value, convert_value_to_lua, validate_and_clone_lua_value}}, log::warn, lua::{LuaError, LuaValue}};
 
@@ -49,6 +49,7 @@ impl AppState {
         env: ModEnvironment,
         args: RunArgs,
         cache_diff: &CacheDiff,
+        transaction: KFCWriteLock,
     ) -> Result<Self, ()> {
         let game_dir = env.game_dir();
         let cache_dir = env.cache_dir();
@@ -58,23 +59,25 @@ impl AppState {
 
         let options = args.options;
         let export_dir = options.export_dir
-            .map(|d| d.canonicalize())
-            .transpose()
-            .map_err(|e| {
-                warn!(
-                    error = %e,
-                    "Failed to canonicalize export directory, using default instead"
-                );
-            })?
-            .map(|d| {
-                PathBuf::from_path_buf(d)
+            .and_then(|d| {
+                d.canonicalize()
+                    .map_err(|e| {
+                        warn!(
+                            error = %e,
+                            "Failed to canonicalize export directory, using default instead"
+                        );
+                    })
+                    .ok()
             })
-            .transpose()
-            .map_err(|_| {
-                warn!(
-                    "Export directory is not valid UTF-8, using default instead"
-                );
-            })?
+            .and_then(|d| {
+                PathBuf::from_path_buf(d)
+                    .map_err(|_| {
+                        warn!(
+                            "Export directory is not valid UTF-8, using default instead"
+                        );
+                    })
+                    .ok()
+            })
             .unwrap_or_else(|| env.game_dir().join("export"));
 
         let skip_cache = options.skip_cache;
@@ -121,11 +124,11 @@ impl AppState {
         let kfc_path = game_dir
             .join(file_name)
             .with_extension("kfc");
-        let bak_path = crate::load::create_backup(&kfc_path)?;
+        let bak_path = crate::load::create_backup_locked(&kfc_path, &transaction)?;
 
         let ref_file = crate::load::load_kfc_file(&bak_path)?;
         let reader = crate::load::create_reader(game_dir, file_name)?;
-        let writer = crate::load::create_writer(game_dir, file_name, &type_registry, &ref_file)?;
+        let writer = crate::load::create_writer(game_dir, file_name, &type_registry, &ref_file, transaction)?;
 
         Ok(Self {
             env,
@@ -291,7 +294,10 @@ impl AppState {
         type_index: TypeIndex,
         lua: &mlua::Lua,
     ) -> mlua::Result<ResourceId> {
-        let r#type = self.type_registry.get(type_index).unwrap();
+        let r#type = self.type_registry.get(type_index)
+            .ok_or_else(|| LuaError::generic(format!(
+                "type with index {type_index} not found"
+            )))?;
         let resources = self.resources.borrow_mut();
         let mut guid: ResourceId;
 
@@ -338,7 +344,9 @@ impl AppState {
         if let hash_map::Entry::Vacant(e) = self.new_contents.borrow_mut().entry(guid) {
             self.writer.borrow_mut()
                 .as_mut()
-                .expect("KFCWriter no longer available")
+                .ok_or_else(|| LuaError::generic(
+                    "cannot create content: KFCWriter is no longer available"
+                ))?
                 .write_content(&guid, data)?;
 
             // TODO: attach a reader to the writer to avoid cloning

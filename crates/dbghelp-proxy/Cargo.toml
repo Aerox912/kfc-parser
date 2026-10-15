@@ -7,6 +7,9 @@ rust-version = "1.88"
 [lib]
 name = "dbghelp"
 crate-type = ["cdylib"]
+# The .def linker settings produce a DLL, not an executable Rust test harness.
+test = false
+doctest = false
 
 [dependencies]
 mod-loader = { path = "../mod-loader", features = ["lua", "runtime"] }

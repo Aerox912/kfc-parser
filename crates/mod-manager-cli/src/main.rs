@@ -14,6 +14,34 @@ use crate::{cli::{Cli, Commands}, log::{error, info}};
 const LUARC_JSON: &str = include_str!("../files/luarc.json");
 const DEFAULT_MOD: &str = include_str!("../files/default_mod.lua");
 
+#[cfg(test)]
+mod failure_tests {
+    use super::*;
+
+    #[test]
+    fn missing_game_directory_is_an_error() {
+        let path = std::env::temp_dir().join(format!("missing-eml-game-{}", std::process::id()));
+        assert!(check_game_directory(&path, "enshrouded").is_err());
+    }
+
+    #[test]
+    fn missing_backup_restore_is_an_error() {
+        let dir = std::env::temp_dir().join(format!("eml-restore-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("enshrouded.exe"), b"fixture").unwrap();
+        let result = restore(dir.clone(), Some("enshrouded".into()));
+        std::fs::remove_dir_all(dir).unwrap();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn cli_runtime_request_is_explicitly_rejected() {
+        let dir = std::env::temp_dir().join(format!("eml-runtime-test-{}", std::process::id()));
+        let result = run(dir, Some("enshrouded".into()), true, false, false, true, None);
+        assert!(result.unwrap_err().to_string().contains("runtime"));
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     logging::setup();
 
@@ -55,19 +83,16 @@ fn check_game_directory(
     file_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !game_directory.exists() {
-        error!("Game directory does not exist");
-        return Ok(());
+        return Err("Game directory does not exist".into());
     }
 
     if !game_directory.is_dir() {
-        error!("Game directory is not a directory");
-        return Ok(());
+        return Err("Game directory is not a directory".into());
     }
 
     if !game_directory.join(file_name).with_extension("kfc").exists() &&
         !game_directory.join(file_name).with_extension("exe").exists() {
-        error!("Game directory does not look like the enshrouded game directory");
-        return Ok(());
+        return Err("Game directory does not look like the enshrouded game directory".into());
     }
 
     Ok(())
@@ -269,9 +294,12 @@ fn run(
     force: bool,
     patch: bool,
     export: bool,
-    _runtime: bool,
+    runtime: bool,
     export_directory: Option<PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    if runtime {
+        return Err("Native runtime loading requires the in-game proxy; CLI --runtime is unsupported".into());
+    }
     let export_directory = match export_directory {
         Some(dir) => dir,
         None => game_directory.join("export"),
@@ -283,8 +311,7 @@ fn run(
     let utf8_game_directory = match game_directory.to_str() {
         Some(path) => path,
         None => {
-            error!("Game directory is not valid UTF-8");
-            return Ok(());
+            return Err("Game directory is not valid UTF-8".into());
         }
     };
 
@@ -292,8 +319,7 @@ fn run(
         Ok(registry) => registry,
         Err(e) => {
             if let Some(error) = e.error {
-                error!("Error loading mod environment: {}", error);
-                return Ok(());
+                return Err(format!("Error loading mod environment: {error}").into());
             }
 
             error!("Errors loading some mods:");
@@ -315,7 +341,7 @@ fn run(
                 }
             }
 
-            return Ok(());
+            return Err("Errors loading the required mod environment".into());
         }
     };
 
@@ -344,10 +370,10 @@ fn restore(
 
     check_game_directory(&game_directory, &file_name)?;
 
-    mod_loader::lua::restore(
-        game_directory.to_str().unwrap(),
-        &file_name
-    );
+    let game_path = game_directory.to_str().ok_or("Game directory is not valid UTF-8")?;
+    if !mod_loader::lua::restore(game_path, &file_name) {
+        return Err("Failed to restore compatible game data".into());
+    }
 
     Ok(())
 }

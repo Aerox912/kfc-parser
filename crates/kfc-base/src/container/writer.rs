@@ -39,6 +39,9 @@ struct IncrementalData<F> {
 
 #[derive(Debug)]
 pub struct KFCWriteOptions {
+    /// Preserve all bytes in an incremental resource file, including unreferenced
+    /// trailing data. Used when generating an output from composed assets.
+    pub append_after_resource_file: bool,
     /// The extension to use for kfc files.
     pub kfc_extension: String,
     /// The extension to use for kfc resource files.
@@ -61,6 +64,7 @@ pub struct KFCWriteOptions {
 impl Default for KFCWriteOptions {
     fn default() -> Self {
         Self {
+            append_after_resource_file: false,
             kfc_extension: "kfc".to_string(),
             resource_extension: "kfc_resources".to_string(),
             dat_extension: "dat".to_string(),
@@ -201,7 +205,16 @@ where
             .max()
             .unwrap_or(0);
 
-        resource_writer.seek(SeekFrom::Start(previous_resource_size))?;
+        if options.append_after_resource_file {
+            let end = resource_writer.seek(SeekFrom::End(0))?;
+            if end < previous_resource_size {
+                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,
+                    "resource file is shorter than the reference index").into());
+            }
+            resource_writer.align(RESOURCE_CHUNK_ALIGNMENT as usize)?;
+        } else {
+            resource_writer.seek(SeekFrom::Start(previous_resource_size))?;
+        }
 
         Ok(Self {
             type_registry,

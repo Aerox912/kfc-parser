@@ -117,6 +117,19 @@ impl KFCReader {
         &self.kfc_path
     }
 
+    /// Selects an explicit resource file for read-only cursors over this index.
+    /// Callers must establish that the file belongs to the loaded index. Content
+    /// container paths and the default constructors are unchanged.
+    pub fn new_with_resource_path(
+        path: impl AsRef<Path>,
+        file_name: impl AsRef<str>,
+        resource_path: impl Into<PathBuf>,
+    ) -> Result<Self, KFCReadError> {
+        let mut reader = Self::new(path, file_name)?;
+        reader.resource_path = resource_path.into();
+        Ok(reader)
+    }
+
     /// Returns the actual size of a resource.
     ///
     /// The game stores resource sizes in 24 bits. For resources of 16 MiB and

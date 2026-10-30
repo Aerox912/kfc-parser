@@ -15,6 +15,8 @@ static SELECTED_BACKEND: OnceLock<Backend> = OnceLock::new();
 pub enum Backend {
     Eml,
     ShroudForge,
+    CurrentAssets,
+    Failed,
 }
 
 /// Reads ShroudForge's existing `modloader` setting once per process.
@@ -24,23 +26,25 @@ pub enum Backend {
 pub fn selected_backend() -> Backend {
     *SELECTED_BACKEND.get_or_init(|| {
         let Some(root) = game_root() else {
-            return Backend::Eml;
+            return Backend::Failed;
         };
-        let config_path = root.join("shroudforge/config/modloader-config.json");
-        let Ok(bytes) = fs::read(config_path) else {
-            return Backend::Eml;
-        };
-        let config = serde_json::from_slice::<serde_json::Value>(&bytes).ok();
-        if config
-            .as_ref()
-            .and_then(|value| value.get("modloader"))
-            .and_then(serde_json::Value::as_str)
-            .is_some_and(|backend| backend.eq_ignore_ascii_case("eml"))
-        {
-            Backend::Eml
-        } else {
-            Backend::ShroudForge
-        }
+        choose_backend(current_assets_owned(&root), || {
+            let config_path = root.join("shroudforge/config/modloader-config.json");
+            let Ok(bytes) = fs::read(config_path) else {
+                return Backend::Eml;
+            };
+            let config = serde_json::from_slice::<serde_json::Value>(&bytes).ok();
+            if config
+                .as_ref()
+                .and_then(|value| value.get("modloader"))
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|backend| backend.eq_ignore_ascii_case("eml"))
+            {
+                Backend::Eml
+            } else {
+                Backend::ShroudForge
+            }
+        })
     })
 }
 
@@ -58,7 +62,9 @@ pub enum Handoff {
 pub fn try_start() -> Handoff {
     match selected_backend() {
         Backend::Eml => Handoff::EmlSelected,
-        Backend::ShroudForge => try_start_shroudforge(),
+        Backend::ShroudForge => try_start_shroudforge("winmm.dll"),
+        Backend::CurrentAssets => try_start_shroudforge("shroudforge-assets-bootstrap.dll"),
+        Backend::Failed => Handoff::Failed,
     }
 }
 
@@ -67,14 +73,16 @@ pub fn try_start() -> Handoff {
 /// If either release file is missing or loading fails, the proxy attach fails.
 /// This minimal bridge does not start the updater or change parser behavior.
 #[cfg(windows)]
-fn try_start_shroudforge() -> Handoff {
+fn try_start_shroudforge(bootstrap_name: &str) -> Handoff {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::System::LibraryLoader::LoadLibraryW;
 
     let Some(root) = game_root() else {
         return Handoff::Failed;
     };
-    let bootstrap = root.join("winmm.dll");
+    // The once-per-process decision includes the bootstrap identity; do not
+    // rescan ownership and accidentally downgrade it to the legacy bootstrap.
+    let bootstrap = root.join(bootstrap_name);
     let runtime = root.join("shroudforge/shroudforge-runtime.dll");
     if !bootstrap.is_file() || !runtime.is_file() {
         return Handoff::Failed;
@@ -94,7 +102,7 @@ fn try_start_shroudforge() -> Handoff {
 
 /// Non-Windows builds cannot load the ShroudForge DLL. EML builds remain usable.
 #[cfg(not(windows))]
-fn try_start_shroudforge() -> Handoff {
+fn try_start_shroudforge(_bootstrap_name: &str) -> Handoff {
     Handoff::Failed
 }
 
@@ -102,4 +110,69 @@ fn try_start_shroudforge() -> Handoff {
 fn game_root() -> Option<PathBuf> {
     let executable = std::env::current_exe().ok()?;
     executable.parent().map(Path::to_path_buf)
+}
+
+fn current_assets_owned(root: &Path) -> std::io::Result<bool> {
+    for name in [
+        "current-assets.json",
+        "current-assets-state.json",
+        "current-assets-pending.json",
+    ] {
+        if root.join("shroudforge/config").join(name).try_exists()? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn choose_backend(ownership: std::io::Result<bool>, legacy: impl FnOnce() -> Backend) -> Backend {
+    match ownership {
+        Ok(true) => Backend::CurrentAssets,
+        Ok(false) => legacy(),
+        Err(_) => Backend::Failed,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn unknown_ownership_never_selects_eml_or_a_bootstrap() {
+        for kind in [
+            std::io::ErrorKind::PermissionDenied,
+            std::io::ErrorKind::Other,
+        ] {
+            assert_eq!(
+                choose_backend(Err(std::io::Error::from(kind)), || panic!(
+                    "must not read legacy selector"
+                )),
+                Backend::Failed
+            );
+        }
+        assert_eq!(
+            choose_backend(Ok(true), || panic!("owned path must not downgrade")),
+            Backend::CurrentAssets
+        );
+        assert_eq!(choose_backend(Ok(false), || Backend::Eml), Backend::Eml);
+        assert_eq!(
+            choose_backend(Ok(false), || Backend::ShroudForge),
+            Backend::ShroudForge
+        );
+    }
+    #[test]
+    fn only_proven_absence_or_owned_markers_select_a_route() {
+        let root = std::env::temp_dir().join(format!("sf-bridge-ownership-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("shroudforge/config")).unwrap();
+        assert!(!current_assets_owned(&root).unwrap());
+        for name in [
+            "current-assets.json",
+            "current-assets-state.json",
+            "current-assets-pending.json",
+        ] {
+            let marker = root.join("shroudforge/config").join(name);
+            std::fs::write(&marker, b"{}").unwrap();
+            assert!(current_assets_owned(&root).unwrap());
+            std::fs::remove_file(marker).unwrap();
+        }
+    }
 }

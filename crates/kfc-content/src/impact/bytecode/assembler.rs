@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use kfc::{reflection::TypeRegistry, Hash32};
+use kfc::{Hash32, reflection::TypeRegistry};
 
 use crate::impact::TypeRegistryImpactExt;
 
-use super::{ImpactNode, ImpactCommand};
+use super::{ImpactCommand, ImpactNode};
 
 #[derive(Debug)]
 pub struct ImpactAssembler<'a> {
@@ -66,24 +66,30 @@ impl<'a> ImpactAssembler<'a> {
                 0x0F => ImpactOps::Dec,
                 0x10 => ImpactOps::Copy,
                 0x11 => ImpactOps::Dup,
-                0x12 => ImpactOps::Call({
-                    let index = code[ptr];
-                    ptr += 1;
-                    index
-                }, {
-                    let index = code[ptr];
-                    ptr += 1;
-                    index
-                }),
-                0x13 => ImpactOps::ECall({
-                    let index = code[ptr];
-                    ptr += 1;
-                    index
-                }, {
-                    let index = code[ptr];
-                    ptr += 1;
-                    index
-                }),
+                0x12 => ImpactOps::Call(
+                    {
+                        let index = code[ptr];
+                        ptr += 1;
+                        index
+                    },
+                    {
+                        let index = code[ptr];
+                        ptr += 1;
+                        index
+                    },
+                ),
+                0x13 => ImpactOps::ECall(
+                    {
+                        let index = code[ptr];
+                        ptr += 1;
+                        index
+                    },
+                    {
+                        let index = code[ptr];
+                        ptr += 1;
+                        index
+                    },
+                ),
                 0x14 => ImpactOps::Ret,
                 0x15 => ImpactOps::Load({
                     let index = code[ptr];
@@ -136,19 +142,19 @@ impl<'a> ImpactAssembler<'a> {
                 ImpactOps::BR(address) => {
                     instructions.push(0x08);
                     instructions.push(*address);
-                },
+                }
                 ImpactOps::BRT(address) => {
                     instructions.push(0x09);
                     instructions.push(*address);
-                },
+                }
                 ImpactOps::BRF(address) => {
                     instructions.push(0x0A);
                     instructions.push(*address);
-                },
+                }
                 ImpactOps::IConst(value) => {
                     instructions.push(0x0B);
                     instructions.push(*value);
-                },
+                }
                 ImpactOps::IConst0 => instructions.push(0x0C),
                 ImpactOps::IConst1 => instructions.push(0x0D),
                 ImpactOps::Inc => instructions.push(0x0E),
@@ -159,29 +165,29 @@ impl<'a> ImpactAssembler<'a> {
                     instructions.push(0x12);
                     instructions.push(*unk);
                     instructions.push(*index);
-                },
+                }
                 ImpactOps::ECall(unk, index) => {
                     instructions.push(0x13);
                     instructions.push(*unk);
                     instructions.push(*index);
-                },
+                }
                 ImpactOps::Ret => instructions.push(0x14),
                 ImpactOps::Load(index) => {
                     instructions.push(0x15);
                     instructions.push(*index);
-                },
+                }
                 ImpactOps::GLoad(index) => {
                     instructions.push(0x16);
                     instructions.push(*index);
-                },
+                }
                 ImpactOps::Store(index) => {
                     instructions.push(0x17);
                     instructions.push(*index);
-                },
+                }
                 ImpactOps::GStore(index) => {
                     instructions.push(0x18);
                     instructions.push(*index);
-                },
+                }
                 ImpactOps::LTime => instructions.push(0x19),
                 ImpactOps::TimeFF => instructions.push(0x1A),
                 ImpactOps::Pop => instructions.push(0x1B),
@@ -214,7 +220,7 @@ pub enum ImpactOps {
     IConst0 = 0x0C,
     IConst1 = 0x0D, // unused
     Inc = 0x0E,
-    Dec = 0x0F, // unused
+    Dec = 0x0F,  // unused
     Copy = 0x10, // unused
     Dup = 0x11,
     Call(u32, u32) = 0x12, // unused
@@ -237,15 +243,15 @@ pub enum ImpactOps {
     // - output2
     // - output1
     ECall(u32, u32) = 0x13,
-    Ret = 0x14, // unused
+    Ret = 0x14,       // unused
     Load(u32) = 0x15, // unused
     GLoad(u32) = 0x16,
     Store(u32) = 0x17, // unused
     GStore(u32) = 0x18,
-    LTime = 0x19, // pushes some time on the stack
+    LTime = 0x19,  // pushes some time on the stack
     TimeFF = 0x1A, // time from float
     Pop = 0x1B,
-    RVM = 0x1C, // yield
+    RVM = 0x1C,   // yield
     DSelf = 0x1D, // destroy self
     Halt = 0x1E,
 

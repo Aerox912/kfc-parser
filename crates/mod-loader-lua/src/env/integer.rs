@@ -1,8 +1,6 @@
-use crate::{lua::{LuaValue, FunctionArgs, LuaError}};
+use crate::lua::{FunctionArgs, LuaError, LuaValue};
 
-pub fn create(
-    lua: &mlua::Lua
-) -> mlua::Result<mlua::Table> {
+pub fn create(lua: &mlua::Lua) -> mlua::Result<mlua::Table> {
     let table = lua.create_table()?;
 
     table.raw_set("u8", create_u8(lua)?)?;
@@ -23,7 +21,7 @@ fn add_function<F, A, R>(
     lua: &mlua::Lua,
     table: &mlua::Table,
     name: &str,
-    func: F
+    func: F,
 ) -> mlua::Result<()>
 where
     F: Fn(&mlua::Lua, A) -> mlua::Result<R> + mlua::MaybeSend + 'static,
@@ -39,9 +37,7 @@ where
 macro_rules! impl_integer_signed {
     ($name:ident, $type:ty) => {
         #[inline]
-        fn $name(
-            lua: &mlua::Lua
-        ) -> mlua::Result<mlua::Table> {
+        fn $name(lua: &mlua::Lua) -> mlua::Result<mlua::Table> {
             let table = lua.create_table()?;
 
             table.raw_set("MIN", LuaValue::Integer(<$type>::MIN as i64))?;
@@ -59,9 +55,7 @@ macro_rules! impl_integer_signed {
 macro_rules! impl_integer_unsigned {
     ($name:ident, $type:ty) => {
         #[inline]
-        fn $name(
-            lua: &mlua::Lua
-        ) -> mlua::Result<mlua::Table> {
+        fn $name(lua: &mlua::Lua) -> mlua::Result<mlua::Table> {
             let table = lua.create_table()?;
 
             table.raw_set("MIN", LuaValue::Integer(<$type>::MIN as i64))?;
@@ -77,58 +71,60 @@ macro_rules! impl_integer_unsigned {
 
 macro_rules! impl_integer_fns {
     ($lua:expr, $table:expr, $type:ty) => {
-        add_function($lua, $table, "parse", |_, value: FunctionArgs| {
-            match value.get::<String>(0)?.parse::<$type>() {
-                Ok(v) => Ok(LuaValue::Integer(v as i64)),
-                Err(_) => Ok(LuaValue::Nil),
-            }
+        add_function($lua, $table, "parse", |_, value: FunctionArgs| match value
+            .get::<String>(0)?
+            .parse::<$type>()
+        {
+            Ok(v) => Ok(LuaValue::Integer(v as i64)),
+            Err(_) => Ok(LuaValue::Nil),
         })?;
-        add_function($lua, $table, "truncate", |_, value: LuaValue| {
-            match value {
-                LuaValue::Integer(i) => Ok(LuaValue::Integer(i as $type as i64)),
-                LuaValue::Number(n) => Ok(LuaValue::Integer(n as $type as i64)),
-                _ => Err(LuaError::bad_argument_type(1, "number or integer", &value).into()),
-            }
+        add_function($lua, $table, "truncate", |_, value: LuaValue| match value {
+            LuaValue::Integer(i) => Ok(LuaValue::Integer(i as $type as i64)),
+            LuaValue::Number(n) => Ok(LuaValue::Integer(n as $type as i64)),
+            _ => Err(LuaError::bad_argument_type(1, "number or integer", &value).into()),
         })?;
-        add_function($lua, $table, "clamp", |_, value: LuaValue| {
-            match value {
-                LuaValue::Integer(i) => {
-                    let clamped = i.clamp(<$type>::MIN as i64, <$type>::MAX as i64) as $type;
-                    Ok(LuaValue::Integer(clamped as i64))
+        add_function($lua, $table, "clamp", |_, value: LuaValue| match value {
+            LuaValue::Integer(i) => {
+                let clamped = i.clamp(<$type>::MIN as i64, <$type>::MAX as i64) as $type;
+                Ok(LuaValue::Integer(clamped as i64))
+            }
+            LuaValue::Number(n) => {
+                let clamped = n.clamp(<$type>::MIN as f64, <$type>::MAX as f64) as $type;
+                Ok(LuaValue::Integer(clamped as i64))
+            }
+            _ => Err(LuaError::bad_argument_type(1, "number or integer", &value).into()),
+        })?;
+        add_function($lua, $table, "is_valid", |_, value: LuaValue| match value {
+            LuaValue::Integer(i) => {
+                if i >= <$type>::MIN as i64 && i <= <$type>::MAX as i64 {
+                    Ok(LuaValue::Boolean(true))
+                } else {
+                    Ok(LuaValue::Boolean(false))
                 }
-                LuaValue::Number(n) => {
-                    let clamped = n.clamp(<$type>::MIN as f64, <$type>::MAX as f64) as $type;
-                    Ok(LuaValue::Integer(clamped as i64))
-                }
-                _ => Err(LuaError::bad_argument_type(1, "number or integer", &value).into()),
             }
-        })?;
-        add_function($lua, $table, "is_valid", |_, value: LuaValue| {
-            match value {
-                LuaValue::Integer(i) => {
-                    if i >= <$type>::MIN as i64 && i <= <$type>::MAX as i64 {
-                        Ok(LuaValue::Boolean(true))
-                    } else {
-                        Ok(LuaValue::Boolean(false))
-                    }
+            LuaValue::Number(n) => {
+                if n.fract() == 0.0 && n >= <$type>::MIN as f64 && n <= <$type>::MAX as f64 {
+                    Ok(LuaValue::Boolean(true))
+                } else {
+                    Ok(LuaValue::Boolean(false))
                 }
-                LuaValue::Number(n) => {
-                    if n.fract() == 0.0 && n >= <$type>::MIN as f64 && n <= <$type>::MAX as f64 {
-                        Ok(LuaValue::Boolean(true))
-                    } else {
-                        Ok(LuaValue::Boolean(false))
-                    }
-                }
-                _ => Err(LuaError::bad_argument_type(1, "number or integer", &value).into()),
             }
+            _ => Err(LuaError::bad_argument_type(1, "number or integer", &value).into()),
         })?;
-        add_function($lua, $table, "to_string", |lua, value: LuaValue| {
-            match value {
-                LuaValue::Integer(i) => Ok(LuaValue::String(lua.create_string((i as $type).to_string())?)),
-                LuaValue::Number(n) => Ok(LuaValue::String(lua.create_string((n as $type).to_string())?)),
+        add_function(
+            $lua,
+            $table,
+            "to_string",
+            |lua, value: LuaValue| match value {
+                LuaValue::Integer(i) => Ok(LuaValue::String(
+                    lua.create_string((i as $type).to_string())?,
+                )),
+                LuaValue::Number(n) => Ok(LuaValue::String(
+                    lua.create_string((n as $type).to_string())?,
+                )),
                 _ => Err(LuaError::bad_argument_type(1, "number or integer", &value).into()),
-            }
-        })?;
+            },
+        )?;
 
         impl_integer_fn_wrapper!($lua, $table, UNARY, count_ones, $type);
         impl_integer_fn_wrapper!($lua, $table, UNARY, count_zeros, $type);
@@ -181,18 +177,82 @@ macro_rules! impl_integer_fns {
         impl_integer_fn_wrapper!($lua, $table, BINARY, overflowing_shr, $type, u32);
         impl_integer_fn_wrapper!($lua, $table, BINARY, overflowing_pow, $type, u32);
 
-        impl_integer_fn_wrapper!($lua, $table, BINARY, add, $type, $type, <$type>::wrapping_add);
-        impl_integer_fn_wrapper!($lua, $table, BINARY, sub, $type, $type, <$type>::wrapping_sub);
-        impl_integer_fn_wrapper!($lua, $table, BINARY, mul, $type, $type, <$type>::wrapping_mul);
-        impl_integer_fn_wrapper!($lua, $table, BINARY, div, $type, $type, <$type>::wrapping_div);
-        impl_integer_fn_wrapper!($lua, $table, BINARY, rem, $type, $type, <$type>::wrapping_rem);
+        impl_integer_fn_wrapper!(
+            $lua,
+            $table,
+            BINARY,
+            add,
+            $type,
+            $type,
+            <$type>::wrapping_add
+        );
+        impl_integer_fn_wrapper!(
+            $lua,
+            $table,
+            BINARY,
+            sub,
+            $type,
+            $type,
+            <$type>::wrapping_sub
+        );
+        impl_integer_fn_wrapper!(
+            $lua,
+            $table,
+            BINARY,
+            mul,
+            $type,
+            $type,
+            <$type>::wrapping_mul
+        );
+        impl_integer_fn_wrapper!(
+            $lua,
+            $table,
+            BINARY,
+            div,
+            $type,
+            $type,
+            <$type>::wrapping_div
+        );
+        impl_integer_fn_wrapper!(
+            $lua,
+            $table,
+            BINARY,
+            rem,
+            $type,
+            $type,
+            <$type>::wrapping_rem
+        );
         impl_integer_fn_wrapper!($lua, $table, BINARY, shl, $type, u32, <$type>::wrapping_shl);
         impl_integer_fn_wrapper!($lua, $table, BINARY, shr, $type, u32, <$type>::wrapping_shr);
         impl_integer_fn_wrapper!($lua, $table, BINARY, pow, $type, u32, <$type>::wrapping_pow);
 
-        impl_integer_fn_wrapper!($lua, $table, BINARY, bit_and, $type, $type, std::ops::BitAnd::bitand);
-        impl_integer_fn_wrapper!($lua, $table, BINARY, bit_or, $type, $type, std::ops::BitOr::bitor);
-        impl_integer_fn_wrapper!($lua, $table, BINARY, bit_xor, $type, $type, std::ops::BitXor::bitxor);
+        impl_integer_fn_wrapper!(
+            $lua,
+            $table,
+            BINARY,
+            bit_and,
+            $type,
+            $type,
+            std::ops::BitAnd::bitand
+        );
+        impl_integer_fn_wrapper!(
+            $lua,
+            $table,
+            BINARY,
+            bit_or,
+            $type,
+            $type,
+            std::ops::BitOr::bitor
+        );
+        impl_integer_fn_wrapper!(
+            $lua,
+            $table,
+            BINARY,
+            bit_xor,
+            $type,
+            $type,
+            std::ops::BitXor::bitxor
+        );
         impl_integer_fn_wrapper!($lua, $table, UNARY, bit_not, $type, std::ops::Not::not);
     };
 }

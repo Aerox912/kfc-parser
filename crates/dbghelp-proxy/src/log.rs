@@ -60,14 +60,14 @@ macro_rules! trace_span {
     };
 }
 
-pub(crate) use info;
-pub(crate) use warning as warn; // use alias to resolve ambiguity with builtin attribute
-pub(crate) use error;
 pub(crate) use debug;
+pub(crate) use error;
+pub(crate) use info;
 pub(crate) use trace;
+pub(crate) use warning as warn; // use alias to resolve ambiguity with builtin attribute
 
-pub(crate) use info_span;
-pub(crate) use warn_span;
-pub(crate) use error_span;
 pub(crate) use debug_span;
+pub(crate) use error_span;
+pub(crate) use info_span;
 pub(crate) use trace_span;
+pub(crate) use warn_span;

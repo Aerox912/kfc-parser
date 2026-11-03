@@ -8,7 +8,8 @@ use kfc::{
 
 use crate::{
     mapped::{
-        MappedArray, MappedBitmask, MappedEnum, MappedOptional, MappedStruct, MappedValue, MappedVariant, MappingError
+        MappedArray, MappedBitmask, MappedEnum, MappedOptional, MappedStruct, MappedValue,
+        MappedVariant, MappingError,
     },
     value::{Value, Variant},
 };
@@ -170,10 +171,7 @@ impl Value {
     }
 
     #[inline]
-    fn from_enum<T>(
-        r#enum: MappedEnum<T>,
-        options: &ConversionOptions
-    ) -> Self
+    fn from_enum<T>(r#enum: MappedEnum<T>, options: &ConversionOptions) -> Self
     where
         T: Borrow<TypeRegistry> + Clone,
     {
@@ -188,20 +186,17 @@ impl Value {
     }
 
     #[inline]
-    fn from_bitmask<T>(
-        value: MappedBitmask<T>,
-        options: &ConversionOptions
-    ) -> Self
+    fn from_bitmask<T>(value: MappedBitmask<T>, options: &ConversionOptions) -> Self
     where
         T: Borrow<TypeRegistry> + Clone,
     {
         match options.bitmask_repr {
-            BitmaskRepr::ArrayValue => Self::Array(
-                value.iter()
-                    .map(|v| Self::UInt(v.value())).collect()
-            ),
+            BitmaskRepr::ArrayValue => {
+                Self::Array(value.iter().map(|v| Self::UInt(v.value())).collect())
+            }
             BitmaskRepr::ArrayName => Self::Array(
-                value.iter()
+                value
+                    .iter()
                     .map(|v| {
                         v.name()
                             .map(str::to_string)
@@ -217,7 +212,7 @@ impl Value {
     #[inline]
     fn from_struct<D, T>(
         r#struct: MappedStruct<D, T>,
-        options: &ConversionOptions
+        options: &ConversionOptions,
     ) -> Result<Self, MappingError>
     where
         D: Borrow<[u8]> + Clone,
@@ -260,7 +255,8 @@ impl Value {
         D: Borrow<[u8]> + Clone,
         T: Borrow<TypeRegistry> + Clone,
     {
-        optional.into_value()
+        optional
+            .into_value()
             .map(|value| Self::from_impl(value, options))
             .unwrap_or_else(|| Ok(Self::None))
     }

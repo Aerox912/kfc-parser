@@ -1,18 +1,18 @@
 use kfc::guid::ContentHash;
 use mlua::UserData;
 
-use crate::{env::{AppState, Buffer}, lua::{LuaError, LuaValue, MethodArgs}};
+use crate::{
+    env::{AppState, Buffer},
+    lua::{LuaError, LuaValue, MethodArgs},
+};
 
 pub struct Content {
     guid: ContentHash,
 }
 
 impl Content {
-
     pub fn new(guid: ContentHash) -> Self {
-        Self {
-            guid,
-        }
+        Self { guid }
     }
 
     pub fn guid(&self) -> &ContentHash {
@@ -34,11 +34,9 @@ impl Content {
             None => Err(LuaError::content_not_found(self.guid.to_string())),
         }
     }
-
 }
 
 impl UserData for Content {
-
     fn add_fields<F: mlua::UserDataFields<Self>>(fields: &mut F) {
         fields.add_field_method_get("guid", |_, this| Ok(this.guid.to_string()));
         fields.add_field_method_get("size", |_, this| Ok(this.guid.size()));
@@ -54,5 +52,4 @@ impl UserData for Content {
             this.get_data(lua)
         });
     }
-
 }

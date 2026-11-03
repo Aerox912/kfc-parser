@@ -1,6 +1,11 @@
 // TODO: Implement better Debug trait representation for StaticMap and StaticMapBuilder
 
-use std::{cmp::{Eq, Ord}, collections::HashMap, hash::Hash, io::{Read, Write}};
+use std::{
+    cmp::{Eq, Ord},
+    collections::HashMap,
+    hash::Hash,
+    io::{Read, Write},
+};
 
 use crate::io::{ReadExt, WriteExt};
 
@@ -18,7 +23,6 @@ pub struct StaticMap<K, V> {
 }
 
 impl<K: std::cmp::PartialEq + StaticHash, V> StaticMap<K, V> {
-
     pub fn from_parts(
         keys: Vec<K>,
         values: Vec<V>,
@@ -31,7 +35,10 @@ impl<K: std::cmp::PartialEq + StaticHash, V> StaticMap<K, V> {
         }
 
         if keys.len() != bucket_ref_count {
-            return Err(StaticMapError::BucketCountMismatch(keys.len(), bucket_ref_count));
+            return Err(StaticMapError::BucketCountMismatch(
+                keys.len(),
+                bucket_ref_count,
+            ));
         }
 
         if !buckets.is_empty() && buckets.len().count_ones() != 1 {
@@ -41,7 +48,13 @@ impl<K: std::cmp::PartialEq + StaticHash, V> StaticMap<K, V> {
         for bucket in &buckets {
             match bucket.index.checked_add(bucket.count) {
                 Some(end) if end <= keys.len() => {}
-                _ => return Err(StaticMapError::BucketOutOfRange(bucket.index, bucket.count, keys.len())),
+                _ => {
+                    return Err(StaticMapError::BucketOutOfRange(
+                        bucket.index,
+                        bucket.count,
+                        keys.len(),
+                    ));
+                }
             }
         }
 
@@ -104,27 +117,27 @@ impl<K: std::cmp::PartialEq + StaticHash, V> StaticMap<K, V> {
     pub fn buckets(&self) -> &[StaticMapBucket] {
         &self.buckets
     }
-
 }
 
 impl<K: Eq + Hash + Ord + StaticHash, V> StaticMap<K, V> {
-
     pub fn into_builder(self) -> StaticMapBuilder<K, V> {
         StaticMapBuilder {
-            entries: self.keys.into_iter().zip(self.values).collect()
+            entries: self.keys.into_iter().zip(self.values).collect(),
         }
     }
-
 }
 
 impl<K: Eq + Hash + Ord + StaticHash + Clone, V: Clone> StaticMap<K, V> {
-
     pub fn as_builder(&self) -> StaticMapBuilder<K, V> {
         StaticMapBuilder {
-            entries: self.keys.iter().cloned().zip(self.values.iter().cloned()).collect(),
+            entries: self
+                .keys
+                .iter()
+                .cloned()
+                .zip(self.values.iter().cloned())
+                .collect(),
         }
     }
-
 }
 
 #[derive(Debug, Clone, Default)]
@@ -134,7 +147,6 @@ pub struct StaticMapBucket {
 }
 
 impl StaticMapBucket {
-
     #[inline]
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let index = reader.read_u32()? as usize;
@@ -150,7 +162,6 @@ impl StaticMapBucket {
 
         Ok(())
     }
-
 }
 
 #[derive(Debug, Clone, Default)]
@@ -159,10 +170,14 @@ pub struct StaticMapBuilder<K, V> {
 }
 
 impl<K: Eq + Hash + Ord + StaticHash, V> StaticMapBuilder<K, V> {
-
     #[inline]
     pub fn insert(&mut self, key: K, value: V) {
         self.entries.insert(key, value);
+    }
+
+    #[inline]
+    pub fn remove(&mut self, key: &K) -> Option<V> {
+        self.entries.remove(key)
     }
 
     #[inline]
@@ -206,7 +221,9 @@ impl<K: Eq + Hash + Ord + StaticHash, V> StaticMapBuilder<K, V> {
 
             let mut count = 0;
 
-            while entry_index < entries.len() && entries[entry_index].0.static_hash() as usize % bucket_size == bucket_index {
+            while entry_index < entries.len()
+                && entries[entry_index].0.static_hash() as usize % bucket_size == bucket_index
+            {
                 entry_index += 1;
                 count += 1;
             }
@@ -217,21 +234,15 @@ impl<K: Eq + Hash + Ord + StaticHash, V> StaticMapBuilder<K, V> {
 
         let (keys, values) = entries.into_iter().unzip();
 
-        StaticMap::from_parts(keys, values, buckets)
-            .expect("Failed to build StaticMap") // should never fail
+        StaticMap::from_parts(keys, values, buckets).expect("Failed to build StaticMap") // should never fail
     }
-
 }
 
 impl<K: Eq + Hash + Ord + StaticHash, V> From<HashMap<K, V>> for StaticMap<K, V> {
-
     #[inline]
     fn from(map: HashMap<K, V>) -> Self {
-        StaticMapBuilder {
-            entries: map,
-        }.build()
+        StaticMapBuilder { entries: map }.build()
     }
-
 }
 
 #[cfg(test)]
@@ -263,6 +274,11 @@ mod tests {
         assert!(builder.contains_key(&2));
         assert!(builder.contains_key(&3));
         assert!(!builder.contains_key(&4));
+
+        assert_eq!(builder.remove(&2), Some("two"));
+        assert_eq!(builder.remove(&2), None);
+        assert_eq!(builder.len(), 2);
+        assert!(!builder.contains_key(&2));
     }
 
     #[test]
@@ -298,7 +314,8 @@ mod tests {
             map.keys().to_vec(),
             map.values().to_vec(),
             map.buckets().to_vec(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(map.get(&1), Some(&"one"));
         assert_eq!(map.get(&2), Some(&"two"));
@@ -314,12 +331,20 @@ mod tests {
         ];
         let result = StaticMap::from_parts(vec![1u32], vec!["one"], buckets);
 
-        assert!(matches!(result, Err(StaticMapError::BucketOutOfRange(1, 1, 1))));
+        assert!(matches!(
+            result,
+            Err(StaticMapError::BucketOutOfRange(1, 1, 1))
+        ));
 
-        let buckets = vec![StaticMapBucket { index: usize::MAX, count: 1 }];
+        let buckets = vec![StaticMapBucket {
+            index: usize::MAX,
+            count: 1,
+        }];
         let result = StaticMap::from_parts(vec![1u32], vec!["one"], buckets);
 
-        assert!(matches!(result, Err(StaticMapError::BucketOutOfRange(usize::MAX, 1, 1))));
+        assert!(matches!(
+            result,
+            Err(StaticMapError::BucketOutOfRange(usize::MAX, 1, 1))
+        ));
     }
-
 }

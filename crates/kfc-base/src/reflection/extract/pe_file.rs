@@ -27,10 +27,7 @@ pub struct PEFile {
 }
 
 impl PEFile {
-
-    pub fn load_from_file<P: AsRef<Path>>(
-        path: P
-    ) -> Result<Self, PEParseError> {
+    pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, PEParseError> {
         // load things in memory since we need to read through the file multiple times
         let data = std::fs::read(path)?;
         let mut reader = Cursor::new(&data);
@@ -86,7 +83,8 @@ impl PEFile {
         for _ in 0..number_of_sections {
             let mut name = [0; 8];
             reader.read_exact(&mut name)?;
-            let index_of_nul = name.iter()
+            let index_of_nul = name
+                .iter()
                 .position(|&c| c == 0)
                 .ok_or(PEParseError::MalformedSectionName)?;
             let name = String::from_utf8(name[..index_of_nul].to_vec())
@@ -178,31 +176,20 @@ impl PEFile {
     }
 
     pub fn offset_to_section(&self, name: &str) -> Option<u64> {
-        self.sections.iter()
+        self.sections
+            .iter()
             .find(|s| s.name == name)
             .map(|s| s.pointer_to_raw_data as u64)
     }
 
-    pub fn find_pointer_to_0va(
-        &self,
-        from_offset: u64,
-        va: u64,
-    ) -> Option<u64> {
-        let needle = super::util::prefix_pattern::<8, 9>(
-            va.to_le_bytes(),
-            0x00
-        );
+    pub fn find_pointer_to_0va(&self, from_offset: u64, va: u64) -> Option<u64> {
+        let needle = super::util::prefix_pattern::<8, 9>(va.to_le_bytes(), 0x00);
 
         self.find(from_offset - 1, needle, 8)
             .map(|offset| offset + 1)
     }
 
-    pub fn find_pointer_to_0va2x(
-        &self,
-        from_offset: u64,
-        va1: u64,
-        va2: u64,
-    ) -> Option<u64> {
+    pub fn find_pointer_to_0va2x(&self, from_offset: u64, va1: u64, va2: u64) -> Option<u64> {
         let needle = super::util::prefix_pattern::<16, 17>(
             va1.to_le_bytes()
                 .iter()
@@ -211,7 +198,7 @@ impl PEFile {
                 .collect::<Vec<u8>>()
                 .try_into()
                 .unwrap(),
-            0x00
+            0x00,
         );
 
         self.find(from_offset - 1, needle, 8)
@@ -219,33 +206,24 @@ impl PEFile {
     }
 
     pub fn get_cursor_at(&self, offset: u64) -> std::io::Result<Cursor<&[u8]>> {
-        self.data.get(offset as usize..)
+        self.data
+            .get(offset as usize..)
             .map(Cursor::new)
             .ok_or_else(|| std::io::Error::other("Out of bounds"))
     }
-
 }
 
 pub trait ReadPEExt {
-
-    fn read_pointee<'a>(
-        &mut self,
-        file: &'a PEFile
-    ) -> std::io::Result<Cursor<&'a [u8]>>;
+    fn read_pointee<'a>(&mut self, file: &'a PEFile) -> std::io::Result<Cursor<&'a [u8]>>;
 
     fn read_pointee_opt<'a>(
         &mut self,
-        file: &'a PEFile
+        file: &'a PEFile,
     ) -> std::io::Result<Option<Cursor<&'a [u8]>>>;
-
 }
 
 impl<R: Read + Seek> ReadPEExt for R {
-
-    fn read_pointee<'a>(
-        &mut self,
-        file: &'a PEFile
-    ) -> std::io::Result<Cursor<&'a [u8]>> {
+    fn read_pointee<'a>(&mut self, file: &'a PEFile) -> std::io::Result<Cursor<&'a [u8]>> {
         file.va_to_fo(self.read_u64()?)
             .and_then(|offset| file.data.get(offset as usize..))
             .map(Cursor::new)
@@ -254,7 +232,7 @@ impl<R: Read + Seek> ReadPEExt for R {
 
     fn read_pointee_opt<'a>(
         &mut self,
-        file: &'a PEFile
+        file: &'a PEFile,
     ) -> std::io::Result<Option<Cursor<&'a [u8]>>> {
         let va = self.read_u64()?;
 
@@ -268,5 +246,4 @@ impl<R: Read + Seek> ReadPEExt for R {
             .map(Some)
             .ok_or_else(|| std::io::Error::other("Could not read pointee"))
     }
-
 }

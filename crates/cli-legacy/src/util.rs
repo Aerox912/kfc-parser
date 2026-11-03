@@ -1,12 +1,17 @@
 use std::borrow::Borrow;
 
-use kfc::{container::{KFCCursor, KFCReader}, guid::ResourceId, reflection::{LookupKey, TypeRegistry}, resource::value::{ConversionOptions, Value}};
+use kfc::{
+    container::{KFCCursor, KFCReader},
+    guid::ResourceId,
+    reflection::{LookupKey, TypeRegistry},
+    resource::value::{ConversionOptions, Value},
+};
 
 pub fn read_descriptor_into<R>(
     reader: &mut KFCCursor<R>,
     type_registry: &TypeRegistry,
     guid: &ResourceId,
-    buf: &mut Vec<u8>
+    buf: &mut Vec<u8>,
 ) -> anyhow::Result<Option<Value>>
 where
     R: Borrow<KFCReader>,
@@ -15,54 +20,43 @@ where
         return Ok(None);
     }
 
-    let result = deserialize_descriptor(
-        type_registry,
-        guid,
-        buf
-    )?;
+    let result = deserialize_descriptor(type_registry, guid, buf)?;
 
     Ok(Some(result))
 }
 
 pub fn serialize_descriptor(
     type_registry: &TypeRegistry,
-    value: &Value
+    value: &Value,
 ) -> anyhow::Result<(ResourceId, Vec<u8>)> {
     let mut result = Vec::new();
 
-    serialize_descriptor_into(type_registry, value, &mut result)
-        .map(|guid| (guid, result))
+    serialize_descriptor_into(type_registry, value, &mut result).map(|guid| (guid, result))
 }
 
 pub fn serialize_descriptor_into(
     type_registry: &TypeRegistry,
     value: &Value,
-    dst: &mut Vec<u8>
+    dst: &mut Vec<u8>,
 ) -> anyhow::Result<ResourceId> {
     if let Some(obj) = value.as_struct() {
-        let type_name = obj.get("$type")
+        let type_name = obj
+            .get("$type")
             .and_then(|v| v.as_string())
             .ok_or_else(|| anyhow::anyhow!("Missing or invalid $type field"))?;
-        let guid = obj.get("$guid")
+        let guid = obj
+            .get("$guid")
             .and_then(|v| v.as_string())
             .ok_or_else(|| anyhow::anyhow!("Missing or invalid $guid field"))?;
-        let part = obj.get("$part")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as u32;
+        let part = obj.get("$part").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
 
-        let r#type = type_registry.get_by_name(LookupKey::Qualified(type_name))
+        let r#type = type_registry
+            .get_by_name(LookupKey::Qualified(type_name))
             .ok_or_else(|| anyhow::anyhow!("Invalid type: {}", type_name))?;
-        let guid = ResourceId::parse(
-            guid,
-            r#type.qualified_hash,
-            part
-        ).ok_or_else(|| anyhow::anyhow!("Invalid GUID: {}", guid))?;
+        let guid = ResourceId::parse(guid, r#type.qualified_hash, part)
+            .ok_or_else(|| anyhow::anyhow!("Invalid GUID: {}", guid))?;
 
-        value.write_into(
-            type_registry,
-            r#type,
-            dst
-        )?;
+        value.write_into(type_registry, r#type, dst)?;
 
         Ok(guid)
     } else {
@@ -73,9 +67,10 @@ pub fn serialize_descriptor_into(
 pub fn deserialize_descriptor(
     type_registry: &TypeRegistry,
     guid: &ResourceId,
-    data: &[u8]
+    data: &[u8],
 ) -> anyhow::Result<Value> {
-    let r#type = type_registry.get_by_hash(LookupKey::Qualified(guid.type_hash()))
+    let r#type = type_registry
+        .get_by_hash(LookupKey::Qualified(guid.type_hash()))
         .ok_or_else(|| anyhow::anyhow!("Type not found for GUID: {}", guid))?;
     let mut result = Value::from_bytes_with_options(
         type_registry,

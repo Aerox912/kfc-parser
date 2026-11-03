@@ -8,11 +8,7 @@ pub struct Token<'a> {
 }
 
 impl<'a> Token<'a> {
-    pub fn new(
-        kind: TokenKind,
-        content: &'a str,
-        span: Span
-    ) -> Self {
+    pub fn new(kind: TokenKind, content: &'a str, span: Span) -> Self {
         Self {
             kind,
             content,
@@ -29,10 +25,7 @@ pub struct Span {
 
 impl Span {
     pub fn new(start: Position, end: Position) -> Self {
-        Self {
-            start,
-            end,
-        }
+        Self { start, end }
     }
 }
 
@@ -75,7 +68,7 @@ pub enum TokenKind {
     Number,
 
     Eof,
-    Unknown
+    Unknown,
 }
 
 impl std::fmt::Display for TokenKind {

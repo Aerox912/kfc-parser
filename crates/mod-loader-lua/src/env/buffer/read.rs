@@ -1,9 +1,8 @@
 use half::f16;
 
-use super::{ByteOrder, Buffer, Result};
+use super::{Buffer, ByteOrder, Result};
 
 impl Buffer {
-
     pub fn read_bool(&mut self) -> Result<bool> {
         Ok(self.read_u8()? != 0)
     }
@@ -36,8 +35,12 @@ impl Buffer {
         self.check_read_bounds(2)?;
 
         let value = match self.order {
-            ByteOrder::BigEndian => u16::from_be_bytes(self.data[self.head..self.head + 2].try_into().unwrap()),
-            ByteOrder::LittleEndian => u16::from_le_bytes(self.data[self.head..self.head + 2].try_into().unwrap()),
+            ByteOrder::BigEndian => {
+                u16::from_be_bytes(self.data[self.head..self.head + 2].try_into().unwrap())
+            }
+            ByteOrder::LittleEndian => {
+                u16::from_le_bytes(self.data[self.head..self.head + 2].try_into().unwrap())
+            }
         };
         self.head += 2;
 
@@ -50,8 +53,12 @@ impl Buffer {
         self.check_read_bounds(2)?;
 
         let value = match self.order {
-            ByteOrder::BigEndian => i16::from_be_bytes(self.data[self.head..self.head + 2].try_into().unwrap()),
-            ByteOrder::LittleEndian => i16::from_le_bytes(self.data[self.head..self.head + 2].try_into().unwrap()),
+            ByteOrder::BigEndian => {
+                i16::from_be_bytes(self.data[self.head..self.head + 2].try_into().unwrap())
+            }
+            ByteOrder::LittleEndian => {
+                i16::from_le_bytes(self.data[self.head..self.head + 2].try_into().unwrap())
+            }
         };
         self.head += 2;
 
@@ -64,8 +71,12 @@ impl Buffer {
         self.check_read_bounds(4)?;
 
         let value = match self.order {
-            ByteOrder::BigEndian => u32::from_be_bytes(self.data[self.head..self.head + 4].try_into().unwrap()),
-            ByteOrder::LittleEndian => u32::from_le_bytes(self.data[self.head..self.head + 4].try_into().unwrap()),
+            ByteOrder::BigEndian => {
+                u32::from_be_bytes(self.data[self.head..self.head + 4].try_into().unwrap())
+            }
+            ByteOrder::LittleEndian => {
+                u32::from_le_bytes(self.data[self.head..self.head + 4].try_into().unwrap())
+            }
         };
         self.head += 4;
 
@@ -78,8 +89,12 @@ impl Buffer {
         self.check_read_bounds(4)?;
 
         let value = match self.order {
-            ByteOrder::BigEndian => i32::from_be_bytes(self.data[self.head..self.head + 4].try_into().unwrap()),
-            ByteOrder::LittleEndian => i32::from_le_bytes(self.data[self.head..self.head + 4].try_into().unwrap()),
+            ByteOrder::BigEndian => {
+                i32::from_be_bytes(self.data[self.head..self.head + 4].try_into().unwrap())
+            }
+            ByteOrder::LittleEndian => {
+                i32::from_le_bytes(self.data[self.head..self.head + 4].try_into().unwrap())
+            }
         };
         self.head += 4;
 
@@ -92,8 +107,12 @@ impl Buffer {
         self.check_read_bounds(8)?;
 
         let value = match self.order {
-            ByteOrder::BigEndian => u64::from_be_bytes(self.data[self.head..self.head + 8].try_into().unwrap()),
-            ByteOrder::LittleEndian => u64::from_le_bytes(self.data[self.head..self.head + 8].try_into().unwrap()),
+            ByteOrder::BigEndian => {
+                u64::from_be_bytes(self.data[self.head..self.head + 8].try_into().unwrap())
+            }
+            ByteOrder::LittleEndian => {
+                u64::from_le_bytes(self.data[self.head..self.head + 8].try_into().unwrap())
+            }
         };
         self.head += 8;
 
@@ -106,8 +125,12 @@ impl Buffer {
         self.check_read_bounds(8)?;
 
         let value = match self.order {
-            ByteOrder::BigEndian => i64::from_be_bytes(self.data[self.head..self.head + 8].try_into().unwrap()),
-            ByteOrder::LittleEndian => i64::from_le_bytes(self.data[self.head..self.head + 8].try_into().unwrap()),
+            ByteOrder::BigEndian => {
+                i64::from_be_bytes(self.data[self.head..self.head + 8].try_into().unwrap())
+            }
+            ByteOrder::LittleEndian => {
+                i64::from_le_bytes(self.data[self.head..self.head + 8].try_into().unwrap())
+            }
         };
         self.head += 8;
 
@@ -120,8 +143,12 @@ impl Buffer {
         self.check_read_bounds(2)?;
 
         let value = match self.order {
-            ByteOrder::BigEndian => f16::from_be_bytes(self.data[self.head..self.head + 2].try_into().unwrap()),
-            ByteOrder::LittleEndian => f16::from_le_bytes(self.data[self.head..self.head + 2].try_into().unwrap()),
+            ByteOrder::BigEndian => {
+                f16::from_be_bytes(self.data[self.head..self.head + 2].try_into().unwrap())
+            }
+            ByteOrder::LittleEndian => {
+                f16::from_le_bytes(self.data[self.head..self.head + 2].try_into().unwrap())
+            }
         };
         self.head += 2;
 
@@ -134,8 +161,12 @@ impl Buffer {
         self.check_read_bounds(4)?;
 
         let value = match self.order {
-            ByteOrder::BigEndian => f32::from_be_bytes(self.data[self.head..self.head + 4].try_into().unwrap()),
-            ByteOrder::LittleEndian => f32::from_le_bytes(self.data[self.head..self.head + 4].try_into().unwrap()),
+            ByteOrder::BigEndian => {
+                f32::from_be_bytes(self.data[self.head..self.head + 4].try_into().unwrap())
+            }
+            ByteOrder::LittleEndian => {
+                f32::from_le_bytes(self.data[self.head..self.head + 4].try_into().unwrap())
+            }
         };
         self.head += 4;
 
@@ -148,8 +179,12 @@ impl Buffer {
         self.check_read_bounds(8)?;
 
         let value = match self.order {
-            ByteOrder::BigEndian => f64::from_be_bytes(self.data[self.head..self.head + 8].try_into().unwrap()),
-            ByteOrder::LittleEndian => f64::from_le_bytes(self.data[self.head..self.head + 8].try_into().unwrap()),
+            ByteOrder::BigEndian => {
+                f64::from_be_bytes(self.data[self.head..self.head + 8].try_into().unwrap())
+            }
+            ByteOrder::LittleEndian => {
+                f64::from_le_bytes(self.data[self.head..self.head + 8].try_into().unwrap())
+            }
         };
         self.head += 8;
 
@@ -166,5 +201,4 @@ impl Buffer {
 
         Ok(bytes)
     }
-
 }

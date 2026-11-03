@@ -45,7 +45,7 @@ pub fn selected_backend() -> Backend {
 }
 
 /// Result of backend dispatch. `EmlSelected` tells the proxy to run its original
-/// EML initialization. `Started` means the ShroudForge bootstrap was loaded, so
+/// EML initialization. `Started` means the ShroudForge bootstrap admitted startup, so
 /// the proxy must skip EML initialization. `Failed` aborts that proxy attach.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Handoff {
@@ -54,11 +54,34 @@ pub enum Handoff {
     Failed,
 }
 
-/// Keeps the existing EML path in the proxy and loads ShroudForge only when selected.
+/// Dispatch without process-attach provenance can select EML, but cannot start
+/// ShroudForge's pre-entry bootstrap. Proxies use `try_start_from_process_attach`.
 pub fn try_start() -> Handoff {
     match selected_backend() {
         Backend::Eml => Handoff::EmlSelected,
-        Backend::ShroudForge => try_start_shroudforge(),
+        Backend::ShroudForge => Handoff::Failed,
+    }
+}
+
+/// Route an actual proxy DllMain attachment. Only the OS-provided non-null
+/// reserved pointer can admit ShroudForge's pre-entry bootstrap. EML behavior
+/// remains the existing proxy-owned route.
+///
+/// # Safety
+/// `module` and `reserved` must be the original parameters of the current
+/// DLL_PROCESS_ATTACH callback. Call synchronously from that callback only.
+pub unsafe fn try_start_from_process_attach(
+    module: *mut std::ffi::c_void,
+    reserved: *mut std::ffi::c_void,
+) -> Handoff {
+    match selected_backend() {
+        Backend::Eml => Handoff::EmlSelected,
+        Backend::ShroudForge => {
+            if module.is_null() || reserved.is_null() {
+                return Handoff::Failed;
+            }
+            unsafe { try_start_shroudforge(module, reserved) }
+        }
     }
 }
 
@@ -67,9 +90,48 @@ pub fn try_start() -> Handoff {
 /// If either release file is missing or loading fails, the proxy attach fails.
 /// This minimal bridge does not start the updater or change parser behavior.
 #[cfg(windows)]
-fn try_start_shroudforge() -> Handoff {
-    use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::System::LibraryLoader::LoadLibraryW;
+unsafe fn try_start_shroudforge(
+    module: *mut std::ffi::c_void,
+    reserved: *mut std::ffi::c_void,
+) -> Handoff {
+    use std::{cell::Cell, ffi::c_void, os::windows::ffi::OsStrExt};
+    use windows_sys::Win32::System::{
+        LibraryLoader::{GetProcAddress, LoadLibraryW},
+        Threading::GetCurrentThreadId,
+    };
+
+    struct AttachContext {
+        module: *mut c_void,
+        thread: u32,
+        reserved: *mut c_void,
+        active: Cell<bool>,
+    }
+    unsafe extern "system" fn verify(
+        context: *const c_void,
+        module: *mut c_void,
+        thread: u32,
+    ) -> i32 {
+        if context.is_null() || unsafe { GetCurrentThreadId() } != thread {
+            return 0;
+        }
+        let context = unsafe { &*context.cast::<AttachContext>() };
+        i32::from(
+            context.active.get()
+                && !context.reserved.is_null()
+                && context.module == module
+                && context.thread == thread,
+        )
+    }
+    #[repr(C)]
+    struct StaticProxyAttachProof {
+        size: u32,
+        version: u32,
+        proxy_module: *mut c_void,
+        attach_thread: u32,
+        context: *const c_void,
+        verify: Option<unsafe extern "system" fn(*const c_void, *mut c_void, u32) -> i32>,
+    }
+    type Start = unsafe extern "system" fn(*const StaticProxyAttachProof) -> i32;
 
     let Some(root) = game_root() else {
         return Handoff::Failed;
@@ -85,16 +147,46 @@ fn try_start_shroudforge() -> Handoff {
         .chain(Some(0))
         .collect::<Vec<_>>();
 
-    if unsafe { LoadLibraryW(wide_path.as_ptr()) }.is_null() {
-        Handoff::Failed
-    } else {
+    let bootstrap = unsafe { LoadLibraryW(wide_path.as_ptr()) };
+    if bootstrap.is_null() {
+        return Handoff::Failed;
+    }
+    let Some(start) = (unsafe {
+        GetProcAddress(
+            bootstrap,
+            c"ShroudforgeStartFromStaticProxy".as_ptr().cast(),
+        )
+    }) else {
+        return Handoff::Failed;
+    };
+    let context = AttachContext {
+        module,
+        thread: unsafe { GetCurrentThreadId() },
+        reserved,
+        active: Cell::new(true),
+    };
+    let proof = StaticProxyAttachProof {
+        size: std::mem::size_of::<StaticProxyAttachProof>() as u32,
+        version: 1,
+        proxy_module: module,
+        attach_thread: context.thread,
+        context: std::ptr::from_ref(&context).cast(),
+        verify: Some(verify),
+    };
+    let start: Start = unsafe { std::mem::transmute(start) };
+    // The callback/context never escapes this synchronous outer DllMain scope.
+    let started = unsafe { start(&proof) } != 0;
+    context.active.set(false);
+    if started {
         Handoff::Started
+    } else {
+        Handoff::Failed
     }
 }
 
 /// Non-Windows builds cannot load the ShroudForge DLL. EML builds remain usable.
 #[cfg(not(windows))]
-fn try_start_shroudforge() -> Handoff {
+unsafe fn try_start_shroudforge(_: *mut std::ffi::c_void, _: *mut std::ffi::c_void) -> Handoff {
     Handoff::Failed
 }
 

@@ -1,7 +1,7 @@
-use block_compression::{encode::compress_rgba8, BC6HSettings, BC7Settings, CompressionVariant};
+use block_compression::{BC6HSettings, BC7Settings, CompressionVariant, encode::compress_rgba8};
 use half::f16;
 
-use crate::image::{size_of_format, PixelFormat};
+use crate::image::{PixelFormat, size_of_format};
 
 // #[inline(always)]
 // const fn map8to2(value: u8) -> u8 {
@@ -74,37 +74,93 @@ macro_rules! encode_component {
 }
 
 macro_rules! component_size {
-    (U8) => { 1 };
-    (S8) => { 1 };
-    (U16) => { 2 };
-    (S16) => { 2 };
-    (U32) => { 4 };
-    (S32) => { 4 };
-    (U64) => { 8 };
-    (S64) => { 8 };
-    (F16) => { 2 };
-    (F32) => { 4 };
-    (F64) => { 8 };
+    (U8) => {
+        1
+    };
+    (S8) => {
+        1
+    };
+    (U16) => {
+        2
+    };
+    (S16) => {
+        2
+    };
+    (U32) => {
+        4
+    };
+    (S32) => {
+        4
+    };
+    (U64) => {
+        8
+    };
+    (S64) => {
+        8
+    };
+    (F16) => {
+        2
+    };
+    (F32) => {
+        4
+    };
+    (F64) => {
+        8
+    };
 }
 
 macro_rules! texel_size {
-    (R, $ty:ident) => { component_size!($ty) };
-    (RG, $ty:ident) => { component_size!($ty) * 2 };
-    (RGB, $ty:ident) => { component_size!($ty) * 3 };
-    (BGR, $ty:ident) => { component_size!($ty) * 3 };
-    (RGBA, $ty:ident) => { component_size!($ty) * 4 };
-    (BGRA, $ty:ident) => { component_size!($ty) * 4 };
-    (ABGR, $ty:ident) => { component_size!($ty) * 4 };
-    (R4G4) => { 1 };
-    (R4G4B4A4) => { 2 };
-    (B4G4R4A4) => { 2 };
-    (R5G6B5) => { 2 };
-    (B5G6R5) => { 2 };
-    (R5G5B5A1) => { 2 };
-    (B5G5R5A1) => { 2 };
-    (A1R5G5B5) => { 2 };
-    (B10G11R11F) => { 4 };
-    (E5B9G9R9F) => { 4 };
+    (R, $ty:ident) => {
+        component_size!($ty)
+    };
+    (RG, $ty:ident) => {
+        component_size!($ty) * 2
+    };
+    (RGB, $ty:ident) => {
+        component_size!($ty) * 3
+    };
+    (BGR, $ty:ident) => {
+        component_size!($ty) * 3
+    };
+    (RGBA, $ty:ident) => {
+        component_size!($ty) * 4
+    };
+    (BGRA, $ty:ident) => {
+        component_size!($ty) * 4
+    };
+    (ABGR, $ty:ident) => {
+        component_size!($ty) * 4
+    };
+    (R4G4) => {
+        1
+    };
+    (R4G4B4A4) => {
+        2
+    };
+    (B4G4R4A4) => {
+        2
+    };
+    (R5G6B5) => {
+        2
+    };
+    (B5G6R5) => {
+        2
+    };
+    (R5G5B5A1) => {
+        2
+    };
+    (B5G5R5A1) => {
+        2
+    };
+    (A1R5G5B5) => {
+        2
+    };
+    (B10G11R11F) => {
+        4
+    };
+    (E5B9G9R9F) => {
+        4
+    };
 }
 
 macro_rules! encode_texel {
@@ -271,19 +327,23 @@ pub fn encode(
         PixelFormat::A8B8G8R8_sscaled_pack32 => encode!(width, height, src, dst, ABGR, S8),
         PixelFormat::A8B8G8R8_uint_pack32 => encode!(width, height, src, dst, ABGR, U8),
         PixelFormat::A8B8G8R8_sint_pack32 => encode!(width, height, src, dst, ABGR, S8),
-        PixelFormat::A8B8G8R8_srgb_pack32 => anyhow::bail!("A8B8G8R8_srgb_pack32 encoding not implemented"),
-        PixelFormat::A2R10G10B10_unorm_pack32 |
-        PixelFormat::A2R10G10B10_snorm_pack32 |
-        PixelFormat::A2R10G10B10_uscaled_pack32 |
-        PixelFormat::A2R10G10B10_sscaled_pack32 |
-        PixelFormat::A2R10G10B10_uint_pack32 |
-        PixelFormat::A2R10G10B10_sint_pack32 |
-        PixelFormat::A2B10G10R10_unorm_pack32 |
-        PixelFormat::A2B10G10R10_snorm_pack32 |
-        PixelFormat::A2B10G10R10_uscaled_pack32 |
-        PixelFormat::A2B10G10R10_sscaled_pack32 |
-        PixelFormat::A2B10G10R10_uint_pack32 |
-        PixelFormat::A2B10G10R10_sint_pack32 => anyhow::bail!("A2B10G10R10_*_pack32 encoding not implemented"),
+        PixelFormat::A8B8G8R8_srgb_pack32 => {
+            anyhow::bail!("A8B8G8R8_srgb_pack32 encoding not implemented")
+        }
+        PixelFormat::A2R10G10B10_unorm_pack32
+        | PixelFormat::A2R10G10B10_snorm_pack32
+        | PixelFormat::A2R10G10B10_uscaled_pack32
+        | PixelFormat::A2R10G10B10_sscaled_pack32
+        | PixelFormat::A2R10G10B10_uint_pack32
+        | PixelFormat::A2R10G10B10_sint_pack32
+        | PixelFormat::A2B10G10R10_unorm_pack32
+        | PixelFormat::A2B10G10R10_snorm_pack32
+        | PixelFormat::A2B10G10R10_uscaled_pack32
+        | PixelFormat::A2B10G10R10_sscaled_pack32
+        | PixelFormat::A2B10G10R10_uint_pack32
+        | PixelFormat::A2B10G10R10_sint_pack32 => {
+            anyhow::bail!("A2B10G10R10_*_pack32 encoding not implemented")
+        }
         PixelFormat::R16_unorm => encode!(width, height, src, dst, R, U16),
         PixelFormat::R16_snorm => encode!(width, height, src, dst, R, S16),
         PixelFormat::R16_uscaled => encode!(width, height, src, dst, R, U16),
@@ -336,10 +396,16 @@ pub fn encode(
         PixelFormat::R64G64B64A64_uint => encode!(width, height, src, dst, RGBA, U64),
         PixelFormat::R64G64B64A64_sint => encode!(width, height, src, dst, RGBA, S64),
         PixelFormat::R64G64B64A64_sfloat => encode!(width, height, src, dst, RGBA, F64),
-        PixelFormat::B10G11R11_ufloat_pack32 => // encode!(width, height, src, dst, B10G11R11F),
-            anyhow::bail!("E5B9G9R9_ufloat_pack32 encoding not implemented"),
-        PixelFormat::E5B9G9R9_ufloat_pack32 => // encode!(width, height, src, dst, E5B9G9R9F),
-            anyhow::bail!("E5B9G9R9_ufloat_pack32 encoding not implemented"),
+        PixelFormat::B10G11R11_ufloat_pack32 =>
+        // encode!(width, height, src, dst, B10G11R11F),
+        {
+            anyhow::bail!("E5B9G9R9_ufloat_pack32 encoding not implemented")
+        }
+        PixelFormat::E5B9G9R9_ufloat_pack32 =>
+        // encode!(width, height, src, dst, E5B9G9R9F),
+        {
+            anyhow::bail!("E5B9G9R9_ufloat_pack32 encoding not implemented")
+        }
 
         // TODO: handle srgb, currently treated as unorm
         PixelFormat::BC1_RGB_unorm_block => encode_bc1(width, height, src, dst),
@@ -355,30 +421,29 @@ pub fn encode(
         PixelFormat::BC5_unorm_block => encode_bc5(width, height, src, dst),
         PixelFormat::BC5_snorm_block => encode_bc5(width, height, src, dst),
         PixelFormat::BC6H_ufloat_block => encode_bc6h(width, height, src, dst),
-        PixelFormat::BC6H_sfloat_block => return Err(anyhow::anyhow!("BC6H_sfloat_block encoding not implemented")),
+        PixelFormat::BC6H_sfloat_block => {
+            return Err(anyhow::anyhow!(
+                "BC6H_sfloat_block encoding not implemented"
+            ));
+        }
         PixelFormat::BC7_unorm_block => encode_bc7(width, height, src, dst),
         PixelFormat::BC7_srgb_block => encode_bc7(width, height, src, dst),
 
         // opaque
-        PixelFormat::D16_unorm |
-        PixelFormat::X8_D24_unorm_pack32 |
-        PixelFormat::D32_sfloat |
-        PixelFormat::S8_uint |
-        PixelFormat::D16_unorm_S8_uint |
-        PixelFormat::D24_unorm_S8_uint |
-        PixelFormat::D32_sfloat_S8_uint => anyhow::bail!("Opaque pixel format: {:?}", format),
+        PixelFormat::D16_unorm
+        | PixelFormat::X8_D24_unorm_pack32
+        | PixelFormat::D32_sfloat
+        | PixelFormat::S8_uint
+        | PixelFormat::D16_unorm_S8_uint
+        | PixelFormat::D24_unorm_S8_uint
+        | PixelFormat::D32_sfloat_S8_uint => anyhow::bail!("Opaque pixel format: {:?}", format),
     }
 
     Ok(())
 }
 
 #[inline(always)]
-fn encode_bc1(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn encode_bc1(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     compress_rgba8(
         CompressionVariant::BC1,
         src,
@@ -390,12 +455,7 @@ fn encode_bc1(
 }
 
 #[inline(always)]
-fn encode_bc2(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn encode_bc2(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     compress_rgba8(
         CompressionVariant::BC2,
         src,
@@ -407,12 +467,7 @@ fn encode_bc2(
 }
 
 #[inline(always)]
-fn encode_bc3(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn encode_bc3(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     compress_rgba8(
         CompressionVariant::BC3,
         src,
@@ -424,12 +479,7 @@ fn encode_bc3(
 }
 
 #[inline(always)]
-fn encode_bc4(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn encode_bc4(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     compress_rgba8(
         CompressionVariant::BC4,
         src,
@@ -441,12 +491,7 @@ fn encode_bc4(
 }
 
 #[inline(always)]
-fn encode_bc5(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn encode_bc5(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     compress_rgba8(
         CompressionVariant::BC5,
         src,
@@ -458,12 +503,7 @@ fn encode_bc5(
 }
 
 #[inline(always)]
-fn encode_bc6h(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn encode_bc6h(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     compress_rgba8(
         CompressionVariant::BC6H(BC6HSettings::basic()),
         src,
@@ -475,12 +515,7 @@ fn encode_bc6h(
 }
 
 #[inline(always)]
-fn encode_bc7(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn encode_bc7(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     compress_rgba8(
         CompressionVariant::BC7(BC7Settings::alpha_basic()),
         src,

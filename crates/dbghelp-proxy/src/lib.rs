@@ -1,9 +1,14 @@
-pub mod logging;
 mod init;
 mod log;
+pub mod logging;
 
-use std::{arch::naked_asm, ffi::{c_void, CStr}, panic::PanicHookInfo, ptr};
 use std::ffi::CString;
+use std::{
+    arch::naked_asm,
+    ffi::{CStr, c_void},
+    panic::PanicHookInfo,
+    ptr,
+};
 
 use mod_loader::Config;
 use windows::{
@@ -525,11 +530,7 @@ forward!(symsrv, 240);
 forward!(vc7fpo, 241);
 
 #[unsafe(no_mangle)]
-extern "system" fn DllMain(
-    _hinst: HINSTANCE,
-    reason: u32,
-    _reserved: *mut c_void,
-) -> BOOL {
+extern "system" fn DllMain(_hinst: HINSTANCE, reason: u32, _reserved: *mut c_void) -> BOOL {
     #[allow(non_snake_case)] // false positive
     match reason {
         DLL_PROCESS_ATTACH => {
@@ -540,15 +541,16 @@ extern "system" fn DllMain(
                     // EML versus ShroudForge: the bridge selects the owner once. EML
                     // runs the original initialization below. ShroudForge loads its
                     // own bootstrap and must not also start EML in this proxy.
-                    match mod_loader_bridge::try_start() {
+                    match unsafe {
+                        mod_loader_bridge::try_start_from_process_attach(_hinst.0, _reserved)
+                    } {
                         mod_loader_bridge::Handoff::Started => {}
                         mod_loader_bridge::Handoff::EmlSelected => {
                             let enable_console = std::env::var("EML_CONSOLE")
                                 .map(|s| matches!(s.to_lowercase().as_str(), "true" | "1" | "yes"))
                                 .unwrap_or(false);
 
-                            let config = Config::load("eml.json")
-                                .unwrap_or_default();
+                            let config = Config::load("eml.json").unwrap_or_default();
 
                             if enable_console || config.enable_console {
                                 crate::enable_console();
@@ -583,7 +585,7 @@ extern "system" fn DllMain(
     TRUE
 }
 
-pub fn enable_console()  {
+pub fn enable_console() {
     unsafe {
         match AllocConsole() {
             Ok(_) => {
@@ -604,7 +606,8 @@ fn panic_handler(info: &PanicHookInfo) {
     } else {
         format!("{:?}", info.payload())
     };
-    let loc = info.location()
+    let loc = info
+        .location()
         .map(|l| format!("{}:{}", l.file(), l.line()))
         .unwrap_or_default();
 
@@ -632,8 +635,7 @@ unsafe fn init_procs() -> Result<(), String> {
 
         const NAME: &[u8] = c"\\dbghelp.dll".to_bytes_with_nul();
 
-        buf[len as usize..len as usize + NAME.len()]
-            .copy_from_slice(NAME);
+        buf[len as usize..len as usize + NAME.len()].copy_from_slice(NAME);
 
         match LoadLibraryA(PCSTR::from_raw(buf.as_ptr() as _)) {
             Ok(h) => h,
@@ -651,16 +653,17 @@ unsafe fn init_procs() -> Result<(), String> {
     }
 
     for i in 0..NAMES.len() {
-        let addr = unsafe {
-            GetProcAddress(dll, PCSTR::from_raw(NAMES[i].as_ptr() as _))
-        };
+        let addr = unsafe { GetProcAddress(dll, PCSTR::from_raw(NAMES[i].as_ptr() as _)) };
 
         match addr {
             Some(addr) => unsafe {
                 M_PROCS[i] = addr as _;
             },
             None => {
-                println!("Warning: {} is missing in dbghelp.dll", NAMES[i].to_string_lossy());
+                println!(
+                    "Warning: {} is missing in dbghelp.dll",
+                    NAMES[i].to_string_lossy()
+                );
 
                 unsafe {
                     M_PROCS[i] = missing_proc as _;

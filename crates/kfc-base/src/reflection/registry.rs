@@ -19,7 +19,6 @@ pub struct TypeRegistry {
 pub struct TypeIndex(pub(super) usize);
 
 impl TypeIndex {
-
     /// Creates a new `TypeIndex` from the given index.
     ///
     /// **Note:** This does not validate the index against any type registry. Use with caution.
@@ -32,7 +31,6 @@ impl TypeIndex {
     pub fn as_usize(&self) -> usize {
         self.0
     }
-
 }
 
 impl Display for TypeIndex {
@@ -48,11 +46,8 @@ pub enum LookupKey<T> {
 }
 
 impl TypeRegistry {
-
     #[inline]
-    pub fn load_from_executable(
-        path: impl AsRef<Path>,
-    ) -> Result<Self, ReflectionParseError> {
+    pub fn load_from_executable(path: impl AsRef<Path>) -> Result<Self, ReflectionParseError> {
         let mut registry = Self::default();
         let types = super::extract_reflection_data(path)?;
 
@@ -62,31 +57,26 @@ impl TypeRegistry {
     }
 
     #[inline]
-    pub fn get(
-        &self,
-        index: TypeIndex,
-    ) -> Option<&TypeMetadata> {
+    pub fn get(&self, index: TypeIndex) -> Option<&TypeMetadata> {
         self.types.get(index.0)
     }
 
     #[inline]
-    pub fn get_by_hash(
-        &self,
-        key: LookupKey<u32>
-    ) -> Option<&TypeMetadata> {
+    pub fn get_by_hash(&self, key: LookupKey<u32>) -> Option<&TypeMetadata> {
         match key {
-            LookupKey::Qualified(hash) => self.types_by_qualified_hash.get(&hash)
+            LookupKey::Qualified(hash) => self
+                .types_by_qualified_hash
+                .get(&hash)
                 .and_then(|&index| self.get(index)),
-            LookupKey::Impact(hash) => self.types_by_impact_hash.get(&hash)
+            LookupKey::Impact(hash) => self
+                .types_by_impact_hash
+                .get(&hash)
                 .and_then(|&index| self.get(index)),
         }
     }
 
     #[inline]
-    pub fn get_by_name<T: AsRef<str>>(
-        &self,
-        key: LookupKey<T>
-    ) -> Option<&TypeMetadata> {
+    pub fn get_by_name<T: AsRef<str>>(&self, key: LookupKey<T>) -> Option<&TypeMetadata> {
         let key = match key {
             LookupKey::Qualified(name) => LookupKey::Qualified(fnv(name.as_ref())),
             LookupKey::Impact(name) => LookupKey::Impact(fnv(name.as_ref())),
@@ -95,11 +85,7 @@ impl TypeRegistry {
         self.get_by_hash(key)
     }
 
-    pub fn is_sub_type(
-        &self,
-        parent: &TypeMetadata,
-        child: &TypeMetadata,
-    ) -> bool {
+    pub fn is_sub_type(&self, parent: &TypeMetadata, child: &TypeMetadata) -> bool {
         if child.index == parent.index {
             return true;
         }
@@ -121,10 +107,7 @@ impl TypeRegistry {
         false
     }
 
-    pub fn get_inheritance_chain<'a>(
-        &'a self,
-        node: &'a TypeMetadata
-    ) -> Vec<&'a TypeMetadata> {
+    pub fn get_inheritance_chain<'a>(&'a self, node: &'a TypeMetadata) -> Vec<&'a TypeMetadata> {
         let mut chain = Vec::new();
         let mut current = node;
 
@@ -166,11 +149,9 @@ impl TypeRegistry {
     }
 
     #[inline]
-    pub fn get_inner_type<'a>(
-        &'a self,
-        r#type: &'a TypeMetadata
-    ) -> Option<&'a TypeMetadata> {
-        r#type.inner_type
+    pub fn get_inner_type<'a>(&'a self, r#type: &'a TypeMetadata) -> Option<&'a TypeMetadata> {
+        r#type
+            .inner_type
             .and_then(|t| self.get(t))
             .map(|t| self.unwrap_typedef(t))
     }
@@ -182,23 +163,20 @@ impl TypeRegistry {
     }
 
     #[inline]
-    pub fn unwrap_typedef<'a>(
-        &'a self,
-        r#type: &'a TypeMetadata
-    ) -> &'a TypeMetadata {
+    pub fn unwrap_typedef<'a>(&'a self, r#type: &'a TypeMetadata) -> &'a TypeMetadata {
         match &r#type.primitive_type {
             PrimitiveType::Typedef => {
                 // TODO: ensure safe unwrap by validating it in [extend]
                 self.get_inner_type(r#type)
                     .expect("missing inner type for typedef")
-            },
-            _ => r#type
+            }
+            _ => r#type,
         }
     }
 
     pub(super) fn extend(
         &mut self,
-        types: Vec<TypeMetadata>
+        types: Vec<TypeMetadata>,
     ) -> Result<usize, ReflectionParseError> {
         if self.types.is_empty() {
             self.types.reserve_exact(types.len());
@@ -231,10 +209,12 @@ impl TypeRegistry {
             }
 
             if has_impact_hash {
-                self.types_by_impact_hash.insert(value.impact_hash, value.index);
+                self.types_by_impact_hash
+                    .insert(value.impact_hash, value.index);
             }
 
-            self.types_by_qualified_hash.insert(value.qualified_hash, value.index);
+            self.types_by_qualified_hash
+                .insert(value.qualified_hash, value.index);
             self.types.push(value);
         }
 
@@ -246,18 +226,13 @@ impl TypeRegistry {
             .map(|r#type| r#type.qualified_name.clone())
             .unwrap_or_else(|| format!("<index {index}>"))
     }
-
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn make_type(
-        index: usize,
-        name: &str,
-        flags: TypeFlags,
-    ) -> TypeMetadata {
+    fn make_type(index: usize, name: &str, flags: TypeFlags) -> TypeMetadata {
         TypeMetadata {
             index: TypeIndex(index),
             name: name.to_string(),
@@ -292,9 +267,24 @@ mod tests {
 
         assert_eq!(registry.extend(types).unwrap(), 2);
         assert_eq!(registry.len(), 2);
-        assert_eq!(registry.get_by_name(LookupKey::Qualified("A")).unwrap().index, TypeIndex(0));
-        assert_eq!(registry.get_by_name(LookupKey::Qualified("B")).unwrap().index, TypeIndex(1));
-        assert_eq!(registry.get_by_name(LookupKey::Impact("A")).unwrap().index, TypeIndex(0));
+        assert_eq!(
+            registry
+                .get_by_name(LookupKey::Qualified("A"))
+                .unwrap()
+                .index,
+            TypeIndex(0)
+        );
+        assert_eq!(
+            registry
+                .get_by_name(LookupKey::Qualified("B"))
+                .unwrap()
+                .index,
+            TypeIndex(1)
+        );
+        assert_eq!(
+            registry.get_by_name(LookupKey::Impact("A")).unwrap().index,
+            TypeIndex(0)
+        );
         assert!(registry.get_by_name(LookupKey::Impact("B")).is_none());
     }
 
@@ -320,10 +310,7 @@ mod tests {
         let mut duplicate = make_type(1, "B", TypeFlags::NONE);
         duplicate.impact_hash = fnv("A");
 
-        let types = vec![
-            make_type(0, "A", TypeFlags::NONE),
-            duplicate,
-        ];
+        let types = vec![make_type(0, "A", TypeFlags::NONE), duplicate];
 
         let err = registry.extend(types).unwrap_err();
 
@@ -332,5 +319,4 @@ mod tests {
             ReflectionParseError::DuplicateImpactHash { hash, .. } if hash == fnv("A")
         ));
     }
-
 }

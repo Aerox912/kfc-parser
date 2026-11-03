@@ -13,4 +13,5 @@ serde_json.workspace = true
 windows-sys = { version = "0.60.2", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
 ] }

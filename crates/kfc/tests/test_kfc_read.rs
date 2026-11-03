@@ -1,7 +1,10 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use kfc::{container::KFCReader, guid::ContentHash};
-use kfc_base::{container::KFCFile, reflection::{LookupKey, TypeRegistry}};
+use kfc_base::{
+    container::KFCFile,
+    reflection::{LookupKey, TypeRegistry},
+};
 
 fn get_game_dir() -> PathBuf {
     std::env::var("GAME_DIR")
@@ -30,7 +33,10 @@ fn test_validate_kfc() -> Result<(), Box<dyn std::error::Error>> {
         let type_hash = guid.type_hash();
         let r#type = type_registry.get_by_hash(LookupKey::Qualified(type_hash));
 
-        assert!(r#type.is_some(), "Type {type_hash} of {guid} not found in type registry");
+        assert!(
+            r#type.is_some(),
+            "Type {type_hash} of {guid} not found in type registry"
+        );
     }
 
     // check resource map
@@ -38,8 +44,14 @@ fn test_validate_kfc() -> Result<(), Box<dyn std::error::Error>> {
         // check existence, if either of those fail:
         // - the hash function is likely broken
         // - the KFC file is corrupted
-        assert!(kfc_file.resources().contains_key(guid), "Resource {guid} not found in KFC file");
-        assert!(kfc_file.resources().get(guid).is_some(), "Missing resource entry for {guid}");
+        assert!(
+            kfc_file.resources().contains_key(guid),
+            "Resource {guid} not found in KFC file"
+        );
+        assert!(
+            kfc_file.resources().get(guid).is_some(),
+            "Missing resource entry for {guid}"
+        );
 
         // check reading
         buf.clear();
@@ -48,13 +60,17 @@ fn test_validate_kfc() -> Result<(), Box<dyn std::error::Error>> {
         assert!(exists, "Resource {guid} not found in KFC file");
 
         // check the size
-        let size = reader.resource_size(guid)
+        let size = reader
+            .resource_size(guid)
             .expect("Resource entry not found"); // checked above
 
         assert_eq!(
             buf.len(),
             size as usize,
-            "Resource {} has size {}, but expected {}", guid, buf.len(), size
+            "Resource {} has size {}, but expected {}",
+            guid,
+            buf.len(),
+            size
         );
     }
 
@@ -63,8 +79,14 @@ fn test_validate_kfc() -> Result<(), Box<dyn std::error::Error>> {
         // If either of those fail:
         // - the hash function is likely broken
         // - the KFC file is corrupted
-        assert!(kfc_file.contents().contains_key(guid), "Content {guid} not found in KFC file");
-        assert!(kfc_file.contents().get(guid).is_some(), "Missing content entry for {guid}");
+        assert!(
+            kfc_file.contents().contains_key(guid),
+            "Content {guid} not found in KFC file"
+        );
+        assert!(
+            kfc_file.contents().get(guid).is_some(),
+            "Missing content entry for {guid}"
+        );
 
         // check reading
         buf.clear();
@@ -73,23 +95,32 @@ fn test_validate_kfc() -> Result<(), Box<dyn std::error::Error>> {
         assert!(exists, "Content {guid} not found in KFC file");
 
         // check the size
-        let entry = kfc_file.contents().get(guid)
+        let entry = kfc_file
+            .contents()
+            .get(guid)
             .expect("Content entry not found"); // checked above
 
-        assert!(entry.flags == 0, "Content {} has non-zero flags: {}", guid, entry.flags);
+        assert!(
+            entry.flags == 0,
+            "Content {} has non-zero flags: {}",
+            guid,
+            entry.flags
+        );
 
         assert_eq!(
             buf.len(),
             guid.size() as usize,
-            "Content {} has size {}, but expected {}", guid, buf.len(), guid.size()
+            "Content {} has size {}, but expected {}",
+            guid,
+            buf.len(),
+            guid.size()
         );
 
         // validate guid
         let computed_guid = ContentHash::from_data(&buf);
 
         assert_eq!(
-            computed_guid,
-            *guid,
+            computed_guid, *guid,
             "Content {guid} has computed guid {computed_guid}, but expected {guid}",
         );
     }
@@ -110,7 +141,10 @@ fn test_validate_kfc() -> Result<(), Box<dyn std::error::Error>> {
             assert_eq!(
                 guid.type_hash(),
                 type_hash,
-                "Resource {} has type hash {}, but expected {}", guid, guid.type_hash(), type_hash
+                "Resource {} has type hash {}, but expected {}",
+                guid,
+                guid.type_hash(),
+                type_hash
             );
 
             count += 1;
@@ -118,13 +152,15 @@ fn test_validate_kfc() -> Result<(), Box<dyn std::error::Error>> {
 
         let expected_count = type_counts.get(&type_hash);
 
-        assert!(expected_count.is_some(), "Type {type_hash} is not a resource type");
+        assert!(
+            expected_count.is_some(),
+            "Type {type_hash} is not a resource type"
+        );
 
         let &expected_count = expected_count.unwrap();
 
         assert_eq!(
-            count,
-            expected_count,
+            count, expected_count,
             "Type {type_hash} has {count} resources, but expected {expected_count}"
         );
     }

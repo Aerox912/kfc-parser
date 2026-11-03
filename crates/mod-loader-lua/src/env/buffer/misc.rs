@@ -1,8 +1,7 @@
-use super::{BufferError, ByteOrder, Buffer, BufferState, Result};
+use super::{Buffer, BufferError, BufferState, ByteOrder, Result};
 
 #[allow(unused)]
 impl Buffer {
-
     fn readable(&self) -> bool {
         matches!(self.state, BufferState::ReadWrite | BufferState::Read)
     }
@@ -10,7 +9,7 @@ impl Buffer {
     pub fn set_readable(&mut self, state: bool) -> Result<()> {
         if state {
             match self.state {
-                BufferState::ReadWrite | BufferState::Read => {},
+                BufferState::ReadWrite | BufferState::Read => {}
                 BufferState::Write => self.state = BufferState::Read,
                 BufferState::Closed => return Err(BufferError::Closed),
             }
@@ -32,7 +31,7 @@ impl Buffer {
     pub fn set_writable(&mut self, state: bool) -> Result<()> {
         if state {
             match self.state {
-                BufferState::ReadWrite | BufferState::Write => {},
+                BufferState::ReadWrite | BufferState::Write => {}
                 BufferState::Read => self.state = BufferState::ReadWrite,
                 BufferState::Closed => return Err(BufferError::Closed),
             }
@@ -242,5 +241,4 @@ impl Buffer {
 
         Ok(())
     }
-
 }

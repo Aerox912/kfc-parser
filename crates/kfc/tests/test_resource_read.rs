@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 
 use kfc::container::KFCReader;
-use kfc_base::{container::KFCFile, reflection::{LookupKey, TypeRegistry}};
+use kfc_base::{
+    container::KFCFile,
+    reflection::{LookupKey, TypeRegistry},
+};
 use kfc_resource::value::{ConversionOptions, Value};
 
 fn get_game_dir() -> PathBuf {
@@ -31,35 +34,45 @@ fn test_validate_resources_with_value() -> Result<(), Box<dyn std::error::Error>
         buf.clear();
 
         let exists = reader.read_resource_into(guid, &mut buf);
-        assert!(exists.is_ok(), "Failed to read resource {}: {}", guid, exists.err().unwrap());
+        assert!(
+            exists.is_ok(),
+            "Failed to read resource {}: {}",
+            guid,
+            exists.err().unwrap()
+        );
         let exists = exists.unwrap();
         assert!(exists, "Resource {guid} not found in KFC file");
 
         let r#type = type_registry.get_by_hash(LookupKey::Qualified(guid.type_hash()));
-        assert!(r#type.is_some(), "Type for resource {guid} not found in TypeRegistry");
+        assert!(
+            r#type.is_some(),
+            "Type for resource {guid} not found in TypeRegistry"
+        );
         let r#type = r#type.unwrap();
 
         // deserialize
-        let deserialized = kfc::resource::value::Value::from_bytes(
-            &type_registry,
-            r#type,
-            &buf
+        let deserialized = kfc::resource::value::Value::from_bytes(&type_registry, r#type, &buf);
+        assert!(
+            deserialized.is_ok(),
+            "Failed to deserialize resource {}: {}",
+            guid,
+            deserialized.err().unwrap()
         );
-        assert!(deserialized.is_ok(), "Failed to deserialize resource {}: {}", guid, deserialized.err().unwrap());
         let deserialized = deserialized.unwrap();
 
         // reserialize
-        let reserialized = deserialized.to_bytes(
-            &type_registry,
-            r#type
+        let reserialized = deserialized.to_bytes(&type_registry, r#type);
+        assert!(
+            reserialized.is_ok(),
+            "Failed to reserialize resource {}: {}",
+            guid,
+            reserialized.err().unwrap()
         );
-        assert!(reserialized.is_ok(), "Failed to reserialize resource {}: {}", guid, reserialized.err().unwrap());
         let reserialized = reserialized.unwrap();
 
         // check if reserialized matches original
         assert_eq!(
-            buf,
-            reserialized,
+            buf, reserialized,
             "Reserialized data for resource {guid} does not match original",
         );
     }
@@ -88,12 +101,20 @@ fn test_validate_resources_with_value_human() -> Result<(), Box<dyn std::error::
         buf.clear();
 
         let exists = reader.read_resource_into(guid, &mut buf);
-        assert!(exists.is_ok(), "Failed to read resource {}: {}", guid, exists.err().unwrap());
+        assert!(
+            exists.is_ok(),
+            "Failed to read resource {}: {}",
+            guid,
+            exists.err().unwrap()
+        );
         let exists = exists.unwrap();
         assert!(exists, "Resource {guid} not found in KFC file");
 
         let r#type = type_registry.get_by_hash(LookupKey::Qualified(guid.type_hash()));
-        assert!(r#type.is_some(), "Type for resource {guid} not found in TypeRegistry");
+        assert!(
+            r#type.is_some(),
+            "Type for resource {guid} not found in TypeRegistry"
+        );
         let r#type = r#type.unwrap();
 
         // deserialize
@@ -103,21 +124,27 @@ fn test_validate_resources_with_value_human() -> Result<(), Box<dyn std::error::
             &buf,
             ConversionOptions::HUMAN_READABLE,
         );
-        assert!(deserialized.is_ok(), "Failed to deserialize resource {}: {}", guid, deserialized.err().unwrap());
+        assert!(
+            deserialized.is_ok(),
+            "Failed to deserialize resource {}: {}",
+            guid,
+            deserialized.err().unwrap()
+        );
         let deserialized = deserialized.unwrap();
 
         // reserialize
-        let reserialized = deserialized.to_bytes(
-            &type_registry,
-            r#type
+        let reserialized = deserialized.to_bytes(&type_registry, r#type);
+        assert!(
+            reserialized.is_ok(),
+            "Failed to reserialize resource {}: {}",
+            guid,
+            reserialized.err().unwrap()
         );
-        assert!(reserialized.is_ok(), "Failed to reserialize resource {}: {}", guid, reserialized.err().unwrap());
         let reserialized = reserialized.unwrap();
 
         // check if reserialized matches original
         assert_eq!(
-            buf,
-            reserialized,
+            buf, reserialized,
             "Reserialized data for resource {guid} does not match original",
         );
     }
@@ -146,37 +173,47 @@ fn test_value_serde_to_json() -> Result<(), Box<dyn std::error::Error>> {
         buf.clear();
 
         let exists = reader.read_resource_into(guid, &mut buf);
-        assert!(exists.is_ok(), "Failed to read resource {}: {}", guid, exists.err().unwrap());
+        assert!(
+            exists.is_ok(),
+            "Failed to read resource {}: {}",
+            guid,
+            exists.err().unwrap()
+        );
         let exists = exists.unwrap();
         assert!(exists, "Resource {guid} not found in KFC file");
 
         let r#type = type_registry.get_by_hash(LookupKey::Qualified(guid.type_hash()));
-        assert!(r#type.is_some(), "Type for resource {guid} not found in TypeRegistry");
+        assert!(
+            r#type.is_some(),
+            "Type for resource {guid} not found in TypeRegistry"
+        );
         let r#type = r#type.unwrap();
 
         // deserialize
-        let deserialized = kfc::resource::value::Value::from_bytes(
-            &type_registry,
-            r#type,
-            &buf
+        let deserialized = kfc::resource::value::Value::from_bytes(&type_registry, r#type, &buf);
+        assert!(
+            deserialized.is_ok(),
+            "Failed to deserialize resource {}: {}",
+            guid,
+            deserialized.err().unwrap()
         );
-        assert!(deserialized.is_ok(), "Failed to deserialize resource {}: {}", guid, deserialized.err().unwrap());
         let deserialized = deserialized.unwrap();
 
-        let json = serde_json::to_string(&deserialized)
-            .expect("Failed to serialize resource to JSON");
-        let deserialized_json = serde_json::from_str::<Value>(&json)
-            .expect("Failed to deserialize JSON back to Value");
-        let reserialized_json = deserialized_json.to_bytes(
-            &type_registry,
-            r#type
+        let json =
+            serde_json::to_string(&deserialized).expect("Failed to serialize resource to JSON");
+        let deserialized_json =
+            serde_json::from_str::<Value>(&json).expect("Failed to deserialize JSON back to Value");
+        let reserialized_json = deserialized_json.to_bytes(&type_registry, r#type);
+        assert!(
+            reserialized_json.is_ok(),
+            "Failed to reserialize resource {} from JSON: {}",
+            guid,
+            reserialized_json.err().unwrap()
         );
-        assert!(reserialized_json.is_ok(), "Failed to reserialize resource {} from JSON: {}", guid, reserialized_json.err().unwrap());
         let reserialized_json = reserialized_json.unwrap();
 
         assert_eq!(
-            buf,
-            reserialized_json,
+            buf, reserialized_json,
             "Reserialized data for resource {guid} from JSON does not match original",
         );
     }

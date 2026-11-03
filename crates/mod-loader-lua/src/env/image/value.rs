@@ -8,22 +8,14 @@ pub struct Image {
 }
 
 impl Image {
-
     #[inline]
-    pub fn new(
-        width: u32,
-        height: u32,
-    ) -> Self {
+    pub fn new(width: u32, height: u32) -> Self {
         Self {
-            inner: RgbaImage::new(width, height)
+            inner: RgbaImage::new(width, height),
         }
     }
 
-    pub fn from_vec(
-        vec: Vec<u8>,
-        width: u32,
-        height: u32,
-    ) -> mlua::Result<Self> {
+    pub fn from_vec(vec: Vec<u8>, width: u32, height: u32) -> mlua::Result<Self> {
         RgbaImage::from_vec(width, height, vec)
             .map(|inner| Self { inner })
             .ok_or_else(|| LuaError::generic("failed to create image"))
@@ -43,7 +35,6 @@ impl Image {
     pub(super) fn inner(&self) -> &RgbaImage {
         &self.inner
     }
-
 }
 
 impl From<RgbaImage> for Image {
@@ -53,14 +44,9 @@ impl From<RgbaImage> for Image {
 }
 
 impl UserData for Image {
-
     fn add_fields<F: mlua::UserDataFields<Self>>(fields: &mut F) {
-        fields.add_field_method_get("width", |_, this| {
-            Ok(this.inner.width())
-        });
-        fields.add_field_method_get("height", |_, this| {
-            Ok(this.inner.height())
-        });
+        fields.add_field_method_get("width", |_, this| Ok(this.inner.width()));
+        fields.add_field_method_get("height", |_, this| Ok(this.inner.height()));
     }
 
     fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
@@ -69,13 +55,9 @@ impl UserData for Image {
         methods.add_function("get_pixel_packed", lua_get_pixel_packed);
         methods.add_function("set_pixel_packed", lua_set_pixel_packed);
     }
-
 }
 
-fn lua_get_pixel(
-    lua: &mlua::Lua,
-    args: MethodArgs,
-) -> mlua::Result<mlua::MultiValue> {
+fn lua_get_pixel(lua: &mlua::Lua, args: MethodArgs) -> mlua::Result<mlua::MultiValue> {
     let this = args.this::<&Image>()?;
     let x = args.get::<u32>(0)?;
     let y = args.get::<u32>(1)?;
@@ -93,10 +75,7 @@ fn lua_get_pixel(
     (r, g, b, a).into_lua_multi(lua)
 }
 
-fn lua_set_pixel(
-    _: &mlua::Lua,
-    args: MethodArgs,
-) -> mlua::Result<()> {
+fn lua_set_pixel(_: &mlua::Lua, args: MethodArgs) -> mlua::Result<()> {
     let mut this = args.this::<&mut Image>()?;
     let x = args.get::<u32>(0)?;
     let y = args.get::<u32>(1)?;
@@ -128,10 +107,7 @@ fn lua_set_pixel(
     Ok(())
 }
 
-fn lua_get_pixel_packed(
-    _: &mlua::Lua,
-    args: MethodArgs,
-) -> mlua::Result<LuaValue> {
+fn lua_get_pixel_packed(_: &mlua::Lua, args: MethodArgs) -> mlua::Result<LuaValue> {
     let this = args.this::<&Image>()?;
     let x = args.get::<u32>(0)?;
     let y = args.get::<u32>(1)?;
@@ -144,13 +120,9 @@ fn lua_get_pixel_packed(
     let value = u32::from_le_bytes([pixel[0], pixel[1], pixel[2], pixel[3]]);
 
     Ok(LuaValue::Integer(value as i64))
-
 }
 
-fn lua_set_pixel_packed(
-    _: &mlua::Lua,
-    args: MethodArgs,
-) -> mlua::Result<()> {
+fn lua_set_pixel_packed(_: &mlua::Lua, args: MethodArgs) -> mlua::Result<()> {
     let mut this = args.this::<&mut Image>()?;
     let x = args.get::<u32>(0)?;
     let y = args.get::<u32>(1)?;
@@ -175,7 +147,8 @@ fn lua_set_pixel_packed(
     }
 
     let bytes = value.to_le_bytes();
-    this.inner.put_pixel(x, y, image::Rgba([bytes[0], bytes[1], bytes[2], bytes[3]]));
+    this.inner
+        .put_pixel(x, y, image::Rgba([bytes[0], bytes[1], bytes[2], bytes[3]]));
 
     Ok(())
 }

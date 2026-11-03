@@ -2,7 +2,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 
-use crate::{reflection::TypeIndex, Hash32};
+use crate::{Hash32, reflection::TypeIndex};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,7 +21,7 @@ pub struct TypeMetadata {
     pub field_count: u32,
     pub primitive_type: PrimitiveType,
     pub flags: TypeFlags,
-    pub name_hash: Hash32, // pre-computed
+    pub name_hash: Hash32,   // pre-computed
     pub impact_hash: Hash32, // pre-computed
     pub qualified_hash: Hash32,
     pub internal_hash: Hash32,
@@ -79,8 +79,7 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[repr(u8)]
 pub enum PrimitiveType {

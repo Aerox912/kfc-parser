@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use kfc::hash::fnv;
 use kfc::reflection::{LookupKey, TypeFlags, TypeMetadata};
-use kfc::{reflection::TypeRegistry, Hash32};
+use kfc::{Hash32, reflection::TypeRegistry};
 
 pub const IMPACT_NODE: &str = "keen::impact_nodes::ImpactNode";
 pub const IMPACT_NODE_HASH: u32 = fnv(IMPACT_NODE);
@@ -44,8 +44,8 @@ pub struct ImpactNodePin<'a> {
 
 impl ImpactNodePin<'_> {
     pub fn is_execution(&self) -> bool {
-        self.r#type.hash == IMPACT_NODE_EXECUTION_HASH ||
-        self.r#type.hash == IMPACT_NODE_EXECUTION_BRANCH_HASH
+        self.r#type.hash == IMPACT_NODE_EXECUTION_HASH
+            || self.r#type.hash == IMPACT_NODE_EXECUTION_BRANCH_HASH
     }
 }
 
@@ -66,7 +66,6 @@ pub trait TypeRegistryImpactExt {
 }
 
 impl TypeRegistryImpactExt for TypeRegistry {
-
     fn get_impact_node_types(&self) -> HashMap<u32, &TypeMetadata> {
         let mut nodes = HashMap::new();
 
@@ -98,8 +97,6 @@ impl TypeRegistryImpactExt for TypeRegistry {
 
         nodes
     }
-
-
 }
 
 fn create_node<'a: 'b, 'b: 'c, 'c>(
@@ -113,7 +110,9 @@ fn create_node<'a: 'b, 'b: 'c, 'c>(
     }
 
     if shutdown_name.is_none() {
-        if let Some(shutdown_name) = node.attributes.get(IMPACT_NODE_SHUTDOWN)
+        if let Some(shutdown_name) = node
+            .attributes
+            .get(IMPACT_NODE_SHUTDOWN)
             .map(|attr| attr.value.as_str())
         {
             create_node(type_collection, node, nodes, Some(shutdown_name));
@@ -123,8 +122,7 @@ fn create_node<'a: 'b, 'b: 'c, 'c>(
     let mut super_types = Vec::new();
     let mut inner = &node.inner_type;
     while let Some(ty) = inner {
-        let info = type_collection.get(*ty)
-            .expect("invalid inner type");
+        let info = type_collection.get(*ty).expect("invalid inner type");
 
         super_types.push(ImpactNodeTypeRef {
             name: &info.qualified_name,
@@ -134,8 +132,8 @@ fn create_node<'a: 'b, 'b: 'c, 'c>(
         inner = if let Some(ty) = type_collection.get(*ty) {
             &ty.inner_type
         } else {
-                break;
-            };
+            break;
+        };
     }
 
     let mut inputs = Vec::new();
@@ -143,7 +141,8 @@ fn create_node<'a: 'b, 'b: 'c, 'c>(
     let mut configs = Vec::new();
     let mut values = Vec::new();
 
-    if let Some(super_type) = super_types.first()
+    if let Some(super_type) = super_types
+        .first()
         .map(|ty| ty.hash)
         .and_then(|hash| type_collection.get_by_hash(LookupKey::Qualified(hash)))
     {
@@ -175,11 +174,11 @@ fn create_node<'a: 'b, 'b: 'c, 'c>(
     }
 
     inputs.extend(
-        node.struct_fields.values()
+        node.struct_fields
+            .values()
             .filter(|field| field.attributes.contains_key(IMPACT_INPUT))
             .map(|field| {
-                let ty = type_collection.get(field.r#type)
-                    .expect("invalid type");
+                let ty = type_collection.get(field.r#type).expect("invalid type");
 
                 ImpactNodePin {
                     name: &field.name,
@@ -187,20 +186,21 @@ fn create_node<'a: 'b, 'b: 'c, 'c>(
                         name: &ty.qualified_name,
                         hash: ty.qualified_hash,
                     },
-                    is_mandatory: field.attributes.contains_key(IMPACT_MANDATORY)
+                    is_mandatory: field.attributes.contains_key(IMPACT_MANDATORY),
                 }
-            })
+            }),
     );
 
     outputs.extend(
-        node.struct_fields.values()
-            .filter(|field|
-                field.attributes.contains_key(IMPACT_OUTPUT) ||
-                type_collection.get(field.r#type).unwrap().qualified_hash == IMPACT_NODE_EXECUTION_BRANCH_HASH
-            )
+        node.struct_fields
+            .values()
+            .filter(|field| {
+                field.attributes.contains_key(IMPACT_OUTPUT)
+                    || type_collection.get(field.r#type).unwrap().qualified_hash
+                        == IMPACT_NODE_EXECUTION_BRANCH_HASH
+            })
             .map(|field| {
-                let ty = type_collection.get(field.r#type)
-                    .expect("invalid type");
+                let ty = type_collection.get(field.r#type).expect("invalid type");
 
                 ImpactNodePin {
                     name: &field.name,
@@ -208,17 +208,17 @@ fn create_node<'a: 'b, 'b: 'c, 'c>(
                         name: &ty.qualified_name,
                         hash: ty.qualified_hash,
                     },
-                    is_mandatory: field.attributes.contains_key(IMPACT_MANDATORY)
+                    is_mandatory: field.attributes.contains_key(IMPACT_MANDATORY),
                 }
-            })
+            }),
     );
 
     configs.extend(
-        node.struct_fields.values()
+        node.struct_fields
+            .values()
             .filter(|field| field.attributes.contains_key(IMPACT_CONFIG))
             .map(|field| {
-                let ty = type_collection.get(field.r#type)
-                    .expect("invalid type");
+                let ty = type_collection.get(field.r#type).expect("invalid type");
 
                 ImpactNodePin {
                     name: &field.name,
@@ -226,17 +226,17 @@ fn create_node<'a: 'b, 'b: 'c, 'c>(
                         name: &ty.qualified_name,
                         hash: ty.qualified_hash,
                     },
-                    is_mandatory: false
+                    is_mandatory: false,
                 }
-            })
+            }),
     );
 
     values.extend(
-        node.struct_fields.values()
+        node.struct_fields
+            .values()
             .filter(|field| field.attributes.contains_key(IMPACT_VALUE))
             .map(|field| {
-                let ty = type_collection.get(field.r#type)
-                    .expect("invalid type");
+                let ty = type_collection.get(field.r#type).expect("invalid type");
 
                 ImpactNodePin {
                     name: &field.name,
@@ -244,9 +244,9 @@ fn create_node<'a: 'b, 'b: 'c, 'c>(
                         name: &ty.qualified_name,
                         hash: ty.qualified_hash,
                     },
-                    is_mandatory: false
+                    is_mandatory: false,
                 }
-            })
+            }),
     );
 
     let node = ImpactNode {
@@ -263,6 +263,5 @@ fn create_node<'a: 'b, 'b: 'c, 'c>(
         values,
     };
 
-    nodes.entry(node.hash)
-        .or_insert_with(|| node)
+    nodes.entry(node.hash).or_insert_with(|| node)
 }

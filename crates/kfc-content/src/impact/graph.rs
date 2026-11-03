@@ -40,8 +40,8 @@ pub struct ImpactProgramDecompiler<'a, 'b> {
     program: &'b ImpactProgram,
     instructions: Vec<ImpactOps>,
 
-    branches: HashMap<usize, usize>, // address -> index of node
-    branch_sizes: HashMap<usize, usize>, // address -> size of branch
+    branches: HashMap<usize, usize>,       // address -> index of node
+    branch_sizes: HashMap<usize, usize>,   // address -> size of branch
     outputs: HashMap<u32, (usize, usize)>, // data_layout index -> node index, pin index
     input_bindings: Vec<(usize, usize, u32)>, // node index, pin index, data_layout
     nodes: Vec<ImpactNodeInfo>,
@@ -53,20 +53,22 @@ struct State {
 }
 
 impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
-    pub fn new(
-        type_collection: &'a TypeRegistry,
-        program: &'b ImpactProgram,
-    ) -> Self {
+    pub fn new(type_collection: &'a TypeRegistry, program: &'b ImpactProgram) -> Self {
         let node_types = type_collection.get_impact_node_types();
         let node_infos = type_collection.get_impact_nodes();
         let mut instructions = ImpactAssembler::disassemble(&program.code);
-        let value_nodes = node_infos.iter()
-            .filter(|(_, node)| node.super_types.iter()
-                .any(|t| t.hash == 1667341273 /* keen::impact_nodes::ImpactValueNode */))
+        let value_nodes = node_infos
+            .iter()
+            .filter(|(_, node)| {
+                node.super_types.iter().any(
+                    |t| t.hash == 1667341273, /* keen::impact_nodes::ImpactValueNode */
+                )
+            })
             .filter(|(_, node)| !node.outputs.is_empty())
             .map(|(_, node)| {
                 let output = node.outputs.first().unwrap();
-                let ty = type_collection.get_by_hash(LookupKey::Qualified(output.r#type.hash))
+                let ty = type_collection
+                    .get_by_hash(LookupKey::Qualified(output.r#type.hash))
                     .expect("missing type info");
                 (ty.name_hash, node.clone())
             })
@@ -93,13 +95,18 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
 
     pub fn decompile(mut self) -> ImpactNodeGraph {
         // decompile node graph flow
-        self.decompile_section(&mut State {
-            branches: Vec::new(),
-        }, &mut 0);
+        self.decompile_section(
+            &mut State {
+                branches: Vec::new(),
+            },
+            &mut 0,
+        );
 
         // construct edges
         for (input_node_index, input_pin_index, data_layout_index) in self.input_bindings {
-            if let Some((output_node_index, output_pin_index)) = self.outputs.get(&data_layout_index) {
+            if let Some((output_node_index, output_pin_index)) =
+                self.outputs.get(&data_layout_index)
+            {
                 self.edges.push(ImpactNodeEdge {
                     from: *output_node_index,
                     from_pin: *output_pin_index,
@@ -136,11 +143,7 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
         }
     }
 
-    fn decompile_section(
-        &mut self,
-        state: &mut State,
-        pc: &mut usize,
-    ) -> usize {
+    fn decompile_section(&mut self, state: &mut State, pc: &mut usize) -> usize {
         if let Some(branch_index) = self.branches.get(pc).copied() {
             if let Some(size) = self.branch_sizes.get(pc).copied() {
                 *pc += size;
@@ -229,7 +232,7 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
             Rvm,
             DSelf,
             Halt,
-            Unknown
+            Unknown,
         }
 
         // find out the node kind
@@ -309,19 +312,13 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
                 let node_index = self.decompile_function(state, pc, index);
                 *pc += 1;
                 node_index
-            },
+            }
             NodeKind::ConditionalFunction(index) => {
                 self.decompile_conditional_function(state, pc, index)
             }
-            NodeKind::IfBoolBranch => {
-                self.decompile_if_bool_branch(state, pc)
-            }
-            NodeKind::ForLoop => {
-                self.decompile_for_loop(state, pc)
-            }
-            NodeKind::Wait => {
-                self.decompile_wait(state, pc)
-            }
+            NodeKind::IfBoolBranch => self.decompile_if_bool_branch(state, pc),
+            NodeKind::ForLoop => self.decompile_for_loop(state, pc),
+            NodeKind::Wait => self.decompile_wait(state, pc),
             NodeKind::Rvm => {
                 *pc += 1;
 
@@ -352,7 +349,7 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
                 }
 
                 node_index
-            },
+            }
             NodeKind::DSelf => {
                 *pc += 1;
 
@@ -365,7 +362,7 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
 
                 // doesn't have any outputs
                 return node_index;
-            },
+            }
             NodeKind::Halt => {
                 *pc += 1;
 
@@ -378,36 +375,28 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
 
                 // doesn't have any outputs
                 return node_index;
-            },
+            }
             NodeKind::Unknown => {
                 panic!("unexpected instruction: {:?}", self.instructions.get(*pc));
             }
         };
 
         let next_node_index = self.decompile_section(state, pc);
-        self.create_exec_edge(
-            state,
-            node_index,
-            0,
-            next_node_index,
-            0,
-        );
+        self.create_exec_edge(state, node_index, 0, next_node_index, 0);
 
         node_index
     }
 
-    fn decompile_function(
-        &mut self,
-        state: &State,
-        pc: &mut usize,
-        index: u32
-    ) -> usize {
+    fn decompile_function(&mut self, state: &State, pc: &mut usize, index: u32) -> usize {
         let node_index = self.nodes.len();
 
-        let function = &self.get_function_type(index)
+        let function = &self
+            .get_function_type(index)
             .and_then(|ty| self.node_infos.get(&ty.qualified_hash))
             .expect("missing function node");
-        let input_value_count = function.inputs.iter()
+        let input_value_count = function
+            .inputs
+            .iter()
             .filter(|pin| pin.r#type.name != "$ImpactNodeExecution")
             .count();
         let input_exec_count = function.inputs.len() - input_value_count;
@@ -421,7 +410,8 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
                 Some(ImpactOps::IConst(index)) => {
                     if i < input_value_count {
                         let i = input_value_count - i - 1;
-                        self.input_bindings.push((node_index, i + input_exec_count, *index));
+                        self.input_bindings
+                            .push((node_index, i + input_exec_count, *index));
                     } else if i < input_value_count + config_count {
                         let json = self.read_variable(state, *index);
                         configs.insert(0, json);
@@ -430,14 +420,14 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
                         let i = size - i - 1;
                         self.outputs.insert(*index, (node_index, i));
                     }
-                },
+                }
                 Some(ImpactOps::IConst0) => {
                     if i < input_value_count {
                         // ignore
                     } else if i < input_value_count + config_count {
                         configs.insert(0, Value::None);
                     }
-                },
+                }
                 Some(ImpactOps::ECall(_, _)) => {
                     *pc += 1;
                     self.nodes.push(ImpactNodeInfo {
@@ -445,8 +435,12 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
                         configs,
                     });
                     break;
-                },
-                _ => panic!("unexpected instruction: {:?} @ {}", self.instructions.get(*pc), *pc),
+                }
+                _ => panic!(
+                    "unexpected instruction: {:?} @ {}",
+                    self.instructions.get(*pc),
+                    *pc
+                ),
             }
 
             i += 1;
@@ -460,7 +454,7 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
         &mut self,
         state: &mut State,
         pc: &mut usize,
-        index: u32
+        index: u32,
     ) -> usize {
         let node_index = self.decompile_function(state, pc, index);
 
@@ -468,62 +462,44 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
             Some(ImpactOps::BRT(address)) => {
                 *pc += 1;
 
-                self.nodes.get_mut(node_index)
+                self.nodes
+                    .get_mut(node_index)
                     .unwrap()
-                    .configs.insert(0, Value::Bool(false));
+                    .configs
+                    .insert(0, Value::Bool(false));
 
                 let if_node_index = self.decompile_section(state, &mut (*address as usize));
                 // let function = &self.get_function_type(index)
                 //     .and_then(|ty| self.node_infos.get(&ty.qualified_hash))
                 //     .expect("missing function node");
 
-                self.create_exec_edge(
-                    state,
-                    node_index,
-                    1,
-                    if_node_index,
-                    0,
-                );
-            },
+                self.create_exec_edge(state, node_index, 1, if_node_index, 0);
+            }
             Some(ImpactOps::BRF(address)) => {
                 *pc += 1;
 
-                self.nodes.get_mut(node_index)
+                self.nodes
+                    .get_mut(node_index)
                     .unwrap()
-                    .configs.insert(0, Value::Bool(true));
+                    .configs
+                    .insert(0, Value::Bool(true));
 
                 let if_node_index = self.decompile_section(state, &mut (*address as usize));
 
-                self.create_exec_edge(
-                    state,
-                    node_index,
-                    1,
-                    if_node_index,
-                    0,
-                );
-            },
+                self.create_exec_edge(state, node_index, 1, if_node_index, 0);
+            }
             _ => panic!("unexpected instruction: {:?}", self.instructions.get(*pc)),
         }
 
         // else branch
         let else_node_index = self.decompile_section(state, pc);
 
-        self.create_exec_edge(
-            state,
-            node_index,
-            2,
-            else_node_index,
-            0,
-        );
+        self.create_exec_edge(state, node_index, 2, else_node_index, 0);
 
         node_index
     }
 
-    fn decompile_for_loop(
-        &mut self,
-        state: &mut State,
-        pc: &mut usize
-    ) -> usize {
+    fn decompile_for_loop(&mut self, state: &mut State, pc: &mut usize) -> usize {
         let node_index = self.nodes.len();
 
         self.nodes.push(ImpactNodeInfo {
@@ -536,7 +512,10 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
 
         let index = match self.instructions.get(*pc + 1) {
             Some(ImpactOps::GStore(index)) => *index,
-            _ => panic!("unexpected instruction: {:?}", self.instructions.get(*pc + 1)),
+            _ => panic!(
+                "unexpected instruction: {:?}",
+                self.instructions.get(*pc + 1)
+            ),
         };
 
         self.outputs.insert(index, (node_index, 2));
@@ -554,7 +533,10 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
 
         let count = match self.instructions.get(*pc + 1) {
             Some(ImpactOps::GLoad(index)) => *index,
-            _ => panic!("unexpected instruction: {:?}", self.instructions.get(*pc + 1)),
+            _ => panic!(
+                "unexpected instruction: {:?}",
+                self.instructions.get(*pc + 1)
+            ),
         };
 
         self.input_bindings.push((node_index, 1, count));
@@ -570,13 +552,7 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
 
         let do_node_index = self.decompile_section(state, &mut address);
 
-        self.create_exec_edge(
-            state,
-            node_index,
-            1,
-            do_node_index,
-            0,
-        );
+        self.create_exec_edge(state, node_index, 1, do_node_index, 0);
 
         state.branches.pop();
 
@@ -585,11 +561,7 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
         node_index
     }
 
-    fn decompile_wait(
-        &mut self,
-        _state: &mut State,
-        pc: &mut usize
-    ) -> usize {
+    fn decompile_wait(&mut self, _state: &mut State, pc: &mut usize) -> usize {
         let node_index = self.nodes.len();
 
         self.nodes.push(ImpactNodeInfo {
@@ -623,11 +595,7 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
         node_index
     }
 
-    fn decompile_if_bool_branch(
-        &mut self,
-        state: &mut State,
-        pc: &mut usize
-    ) -> usize {
+    fn decompile_if_bool_branch(&mut self, state: &mut State, pc: &mut usize) -> usize {
         let node_index = self.nodes.len();
 
         self.nodes.push(ImpactNodeInfo {
@@ -656,25 +624,13 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
 
         let if_node_index = self.decompile_section(state, &mut address);
 
-        self.create_exec_edge(
-            state,
-            node_index,
-            1,
-            if_node_index,
-            0,
-        );
+        self.create_exec_edge(state, node_index, 1, if_node_index, 0);
 
         *pc += 1;
 
         let else_node_index = self.decompile_section(state, pc);
 
-        self.create_exec_edge(
-            state,
-            node_index,
-            2,
-            else_node_index,
-            0,
-        );
+        self.create_exec_edge(state, node_index, 2, else_node_index, 0);
 
         node_index
     }
@@ -685,7 +641,7 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
         from: usize,
         from_pin: usize,
         to: usize,
-        to_pin: usize
+        to_pin: usize,
     ) {
         if !state.branches.contains(&to) {
             self.edges.push(ImpactNodeEdge {
@@ -697,13 +653,11 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
         }
     }
 
-    fn read_variable(
-        &self,
-        _state: &State,
-        index: u32
-    ) -> Value {
+    fn read_variable(&self, _state: &State, index: u32) -> Value {
         let layout = &self.program.data_layout[index as usize & 0xFFFF];
-        let type_info = self.type_collection.get_by_hash(LookupKey::Impact(layout.r#type.value))
+        let type_info = self
+            .type_collection
+            .get_by_hash(LookupKey::Impact(layout.r#type.value))
             .expect("missing type info");
 
         let start = layout.offset_in_bytes as usize;
@@ -713,8 +667,9 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
             self.type_collection,
             type_info,
             &self.program.data[start..end],
-            ConversionOptions::HUMAN_READABLE
-        ).expect("failed to deserialize data")
+            ConversionOptions::HUMAN_READABLE,
+        )
+        .expect("failed to deserialize data")
     }
 
     fn get_function_type(&self, index: u32) -> Option<&TypeMetadata> {
@@ -734,16 +689,15 @@ impl<'a, 'b> ImpactProgramDecompiler<'a, 'b> {
             match instruction {
                 ImpactOps::BR(address) => {
                     *address = *mappings.get(address).unwrap() as u32;
-                },
+                }
                 ImpactOps::BRT(address) => {
                     *address = *mappings.get(address).unwrap() as u32;
-                },
+                }
                 ImpactOps::BRF(address) => {
                     *address = *mappings.get(address).unwrap() as u32;
-                },
+                }
                 _ => {}
             }
         }
     }
-
 }

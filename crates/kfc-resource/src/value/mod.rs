@@ -34,7 +34,6 @@ pub struct Variant {
 }
 
 impl Value {
-
     #[inline]
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
@@ -295,7 +294,6 @@ impl Value {
             None
         }
     }
-
 }
 
 impl Display for Value {
@@ -314,7 +312,6 @@ impl Display for Value {
         }
     }
 }
-
 
 macro_rules! impl_into {
     ($type:ty, $variant:ident) => {

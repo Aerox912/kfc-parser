@@ -1,11 +1,34 @@
-use std::{cell::{Cell, RefCell, RefMut}, collections::{HashMap, hash_map::{self, Entry}}, rc::Rc};
+use std::{
+    cell::{Cell, RefCell, RefMut},
+    collections::{
+        HashMap,
+        hash_map::{self, Entry},
+    },
+    rc::Rc,
+};
 
 use bitflags::bitflags;
+use kfc::{
+    container::{KFCCursor, KFCFile, KFCReader, KFCWriter},
+    guid::{ContentHash, ResourceId},
+    reflection::{LookupKey, TypeHandle, TypeIndex, TypeRegistry},
+    resource::value::Value,
+};
 use mod_loader::ModEnvironment;
 use once_cell::unsync::OnceCell;
-use kfc::{container::{KFCCursor, KFCFile, KFCReader, KFCWriter}, guid::{ContentHash, ResourceId}, reflection::{LookupKey, TypeHandle, TypeIndex, TypeRegistry}, resource::value::Value};
 
-use crate::{RunArgs, alias::{MappedValue, PathBuf}, cache::CacheDiff, env::{Type, game::value::is_dirty_lua_value, value::{convert_lua_to_value, convert_value_to_lua, validate_and_clone_lua_value}}, log::warn, lua::{LuaError, LuaValue}};
+use crate::{
+    RunArgs,
+    alias::{MappedValue, PathBuf},
+    cache::CacheDiff,
+    env::{
+        Type,
+        game::value::is_dirty_lua_value,
+        value::{convert_lua_to_value, convert_value_to_lua, validate_and_clone_lua_value},
+    },
+    log::warn,
+    lua::{LuaError, LuaValue},
+};
 
 pub struct AppState {
     env: ModEnvironment,
@@ -44,12 +67,7 @@ bitflags! {
 }
 
 impl AppState {
-
-    pub fn new(
-        env: ModEnvironment,
-        args: RunArgs,
-        cache_diff: &CacheDiff,
-    ) -> Result<Self, ()> {
+    pub fn new(env: ModEnvironment, args: RunArgs, cache_diff: &CacheDiff) -> Result<Self, ()> {
         let game_dir = env.game_dir();
         let cache_dir = env.cache_dir();
         let file_name = &args.file_name;
@@ -57,7 +75,8 @@ impl AppState {
         // prepare configuration
 
         let options = args.options;
-        let export_dir = options.export_dir
+        let export_dir = options
+            .export_dir
             .and_then(|d| {
                 d.canonicalize()
                     .map_err(|e| {
@@ -71,16 +90,15 @@ impl AppState {
             .and_then(|d| {
                 PathBuf::from_path_buf(d)
                     .map_err(|_| {
-                        warn!(
-                            "Export directory is not valid UTF-8, using default instead"
-                        );
+                        warn!("Export directory is not valid UTF-8, using default instead");
                     })
                     .ok()
             })
             .unwrap_or_else(|| env.game_dir().join("export"));
 
         let skip_cache = options.skip_cache;
-        let is_server = options.is_server
+        let is_server = options
+            .is_server
             .unwrap_or_else(|| file_name.to_lowercase().contains("server"));
 
         let mut feature_flags = AppFeatures::empty();
@@ -108,11 +126,8 @@ impl AppState {
 
         // load and attach to resources
 
-        let (type_registry, is_dirty) = crate::load::load_type_registry(
-            game_dir,
-            cache_dir,
-            file_name,
-        )?;
+        let (type_registry, is_dirty) =
+            crate::load::load_type_registry(game_dir, cache_dir, file_name)?;
         crate::load::export_lua_definitions(
             cache_dir,
             &type_registry,
@@ -120,9 +135,7 @@ impl AppState {
         );
         let type_registry = Rc::new(type_registry);
 
-        let kfc_path = game_dir
-            .join(file_name)
-            .with_extension("kfc");
+        let kfc_path = game_dir.join(file_name).with_extension("kfc");
         let bak_path = crate::load::create_backup(&kfc_path)?;
 
         let ref_file = crate::load::load_kfc_file(&bak_path)?;
@@ -204,31 +217,20 @@ impl AppState {
     }
 
     #[inline]
-    pub fn take_writer(
-        &self,
-    ) -> KFCWriter<Rc<KFCFile>, Rc<TypeRegistry>> {
-        self.writer.borrow_mut()
+    pub fn take_writer(&self) -> KFCWriter<Rc<KFCFile>, Rc<TypeRegistry>> {
+        self.writer
+            .borrow_mut()
             .take()
             .expect("KFCWriter is no longer available")
     }
 
-    pub fn get_cached_resources(
-        &self,
-    ) -> Vec<Rc<ResourceInfo>> {
-        self.resources.borrow()
-            .values()
-            .cloned()
-            .collect()
+    pub fn get_cached_resources(&self) -> Vec<Rc<ResourceInfo>> {
+        self.resources.borrow().values().cloned().collect()
     }
 
-    pub fn get_resource_info(
-        &self,
-        guid: &ResourceId,
-    ) -> Option<Rc<ResourceInfo>> {
+    pub fn get_resource_info(&self, guid: &ResourceId) -> Option<Rc<ResourceInfo>> {
         match self.resources.borrow_mut().entry(*guid) {
-            Entry::Occupied(entry) => {
-                Some(entry.get().clone())
-            },
+            Entry::Occupied(entry) => Some(entry.get().clone()),
             Entry::Vacant(entry) => {
                 if !self.ref_file.resources().contains_key(guid) {
                     return None;
@@ -265,15 +267,13 @@ impl AppState {
 
         let r#type = TypeHandle::new(
             self.type_registry.clone(),
-            self.type_registry.get_by_hash(LookupKey::Qualified(guid.type_hash()))
+            self.type_registry
+                .get_by_hash(LookupKey::Qualified(guid.type_hash()))
                 .ok_or_else(|| LuaError::type_not_found(guid.type_hash()))?
                 .index,
         );
-        let value = validate_and_clone_lua_value(
-            value,
-            &r#type,
-            lua,
-        ).map_err(LuaError::external)?;
+        let value =
+            validate_and_clone_lua_value(value, &r#type, lua).map_err(LuaError::external)?;
 
         let info = Rc::new(ResourceInfo {
             resource_id: *guid,
@@ -293,21 +293,17 @@ impl AppState {
         type_index: TypeIndex,
         lua: &mlua::Lua,
     ) -> mlua::Result<ResourceId> {
-        let r#type = self.type_registry.get(type_index)
-            .ok_or_else(|| LuaError::generic(format!(
-                "type with index {type_index} not found"
-            )))?;
+        let r#type = self
+            .type_registry
+            .get(type_index)
+            .ok_or_else(|| LuaError::generic(format!("type with index {type_index} not found")))?;
         let resources = self.resources.borrow_mut();
         let mut guid: ResourceId;
 
         loop {
             let uuid = uuid::Uuid::new_v4().into_bytes();
 
-            guid = ResourceId::new(
-                uuid.into(),
-                r#type.qualified_hash,
-                0,
-            );
+            guid = ResourceId::new(uuid.into(), r#type.qualified_hash, 0);
 
             if !resources.contains_key(&guid) {
                 break;
@@ -326,10 +322,7 @@ impl AppState {
             || self.kfc_file().contents().contains_key(guid)
     }
 
-    pub fn get_content(
-        &self,
-        guid: &ContentHash,
-    ) -> mlua::Result<Option<Vec<u8>>> {
+    pub fn get_content(&self, guid: &ContentHash) -> mlua::Result<Option<Vec<u8>>> {
         if let Some(value) = self.new_contents.borrow().get(guid) {
             // OPTIMIZE: cloning here can be quite expensive
             Ok(Some(value.clone()))
@@ -339,18 +332,16 @@ impl AppState {
         }
     }
 
-    pub fn create_content(
-        &self,
-        data: &[u8],
-    ) -> mlua::Result<ContentHash> {
+    pub fn create_content(&self, data: &[u8]) -> mlua::Result<ContentHash> {
         let guid = ContentHash::from_data(data);
 
         if let hash_map::Entry::Vacant(e) = self.new_contents.borrow_mut().entry(guid) {
-            self.writer.borrow_mut()
+            self.writer
+                .borrow_mut()
                 .as_mut()
-                .ok_or_else(|| LuaError::generic(
-                    "cannot create content: KFCWriter is no longer available"
-                ))?
+                .ok_or_else(|| {
+                    LuaError::generic("cannot create content: KFCWriter is no longer available")
+                })?
                 .write_content(&guid, data)?;
 
             // TODO: attach a reader to the writer to avoid cloning
@@ -372,10 +363,7 @@ impl AppState {
                     return Ok(None);
                 }
 
-                let value = Type::new(TypeHandle::new(
-                    self.type_registry.clone(),
-                    type_index,
-                ));
+                let value = Type::new(TypeHandle::new(self.type_registry.clone(), type_index));
                 let value = LuaValue::UserData(lua.create_userdata(value)?);
 
                 entry.insert(value.clone());
@@ -383,7 +371,6 @@ impl AppState {
             }
         }
     }
-
 }
 
 pub struct ResourceInfo {
@@ -395,11 +382,7 @@ pub struct ResourceInfo {
 }
 
 impl ResourceInfo {
-
-    pub fn get_lua_value(
-        &self,
-        lua: &mlua::Lua,
-    ) -> mlua::Result<LuaValue> {
+    pub fn get_lua_value(&self, lua: &mlua::Lua) -> mlua::Result<LuaValue> {
         if let Some(value) = self.value.borrow().as_ref() {
             return Ok(value.clone());
         }
@@ -414,11 +397,7 @@ impl ResourceInfo {
         Ok(value)
     }
 
-    pub fn set_lua_value(
-        &self,
-        lua_value: LuaValue,
-        lua: &mlua::Lua,
-    ) -> mlua::Result<()> {
+    pub fn set_lua_value(&self, lua_value: LuaValue, lua: &mlua::Lua) -> mlua::Result<()> {
         let app_state = lua.app_data_ref::<AppState>().unwrap();
         let type_registry = app_state.type_registry();
 
@@ -428,12 +407,10 @@ impl ResourceInfo {
 
         let lua_value = validate_and_clone_lua_value(
             &lua_value,
-            &TypeHandle::new(
-                type_registry.clone(),
-                r#type.index,
-            ),
+            &TypeHandle::new(type_registry.clone(), r#type.index),
             lua,
-        ).map_err(LuaError::external)?;
+        )
+        .map_err(LuaError::external)?;
 
         self.value.replace(Some(lua_value));
         self.is_dirty.replace(true);
@@ -441,10 +418,7 @@ impl ResourceInfo {
         Ok(())
     }
 
-    pub fn apply(
-        &self,
-        lua: &mlua::Lua,
-    ) -> mlua::Result<Option<Value>> {
+    pub fn apply(&self, lua: &mlua::Lua) -> mlua::Result<Option<Value>> {
         let app_state = lua.app_data_ref::<AppState>().unwrap();
         let type_registry = app_state.type_registry();
 
@@ -464,40 +438,39 @@ impl ResourceInfo {
 
         let value = convert_lua_to_value(
             lua_value,
-            &TypeHandle::new(
-                type_registry.clone(),
-                r#type.index,
-            ),
-        ).map_err(LuaError::external)?;
+            &TypeHandle::new(type_registry.clone(), r#type.index),
+        )
+        .map_err(LuaError::external)?;
 
         Ok(Some(value))
     }
 
-    fn get_mapped_value(
-        &self,
-        lua: &mlua::Lua,
-    ) -> mlua::Result<Option<&MappedValue>> {
+    fn get_mapped_value(&self, lua: &mlua::Lua) -> mlua::Result<Option<&MappedValue>> {
         let app_state = lua.app_data_ref::<AppState>().unwrap();
 
-        self.original_value.get_or_try_init(|| {
-            match app_state.reader().read_resource(&self.resource_id)? {
-                Some(value) => {
-                    let type_registry = app_state.type_registry();
-                    let r#type = type_registry
-                        .get_by_hash(LookupKey::Qualified(self.resource_id.type_hash()))
-                        .ok_or_else(|| LuaError::type_not_found(self.resource_id.type_hash()))?;
+        self.original_value
+            .get_or_try_init(
+                || match app_state.reader().read_resource(&self.resource_id)? {
+                    Some(value) => {
+                        let type_registry = app_state.type_registry();
+                        let r#type = type_registry
+                            .get_by_hash(LookupKey::Qualified(self.resource_id.type_hash()))
+                            .ok_or_else(|| {
+                                LuaError::type_not_found(self.resource_id.type_hash())
+                            })?;
 
-                    let value = MappedValue::from_bytes(
-                        type_registry,
-                        r#type,
-                        &Rc::from(value.into_boxed_slice()),
-                    ).map_err(LuaError::external)?;
+                        let value = MappedValue::from_bytes(
+                            type_registry,
+                            r#type,
+                            &Rc::from(value.into_boxed_slice()),
+                        )
+                        .map_err(LuaError::external)?;
 
-                    Ok(Some(value))
+                        Ok(Some(value))
+                    }
+                    None => Ok(None),
                 },
-                None => Ok(None),
-            }
-        }).map(|v| v.as_ref())
+            )
+            .map(|v| v.as_ref())
     }
-
 }

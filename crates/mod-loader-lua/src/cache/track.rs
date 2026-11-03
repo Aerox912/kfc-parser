@@ -5,11 +5,7 @@ use walkdir::WalkDir;
 use crate::{cache::FileStateCache, log::warn};
 
 impl FileStateCache {
-
-    pub fn track_game_files(
-        &mut self,
-        game_dir: impl AsRef<Path>,
-    ) {
+    pub fn track_game_files(&mut self, game_dir: impl AsRef<Path>) {
         let game_dir = game_dir.as_ref();
 
         let game_files = match std::fs::read_dir(game_dir) {
@@ -48,17 +44,11 @@ impl FileStateCache {
         }
     }
 
-    pub fn track_mod_files(
-        &mut self,
-        mods_dir: impl AsRef<Path>,
-    ) {
+    pub fn track_mod_files(&mut self, mods_dir: impl AsRef<Path>) {
         self.track_directory(mods_dir);
     }
 
-    pub fn track_directory(
-        &mut self,
-        dir: impl AsRef<Path>,
-    ) {
+    pub fn track_directory(&mut self, dir: impl AsRef<Path>) {
         let mod_files = WalkDir::new(dir)
             .follow_links(true)
             .follow_root_links(true)
@@ -100,5 +90,4 @@ impl FileStateCache {
             self.track(&path);
         }
     }
-
 }

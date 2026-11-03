@@ -1,21 +1,37 @@
 use std::ops::Deref;
 
-use kfc::reflection::{Attribute, EnumFieldMetadata, LookupKey, PrimitiveType, StructFieldMetadata, TypeFlags, TypeMetadata};
+use indexmap::IndexMap;
+use kfc::reflection::{
+    Attribute, EnumFieldMetadata, LookupKey, PrimitiveType, StructFieldMetadata, TypeFlags,
+    TypeMetadata,
+};
 use mlua::{IntoLua, Table, UserData};
 use once_cell::unsync::OnceCell;
-use indexmap::IndexMap;
 
-use crate::{alias::TypeHandle, env::{util::add_function, value::type_of, AppState}, lua::{Either, FunctionArgs, LuaValue}, util::{ReadOnlyArray, ReadOnlyMap}};
+use crate::{
+    alias::TypeHandle,
+    env::{AppState, util::add_function, value::type_of},
+    lua::{Either, FunctionArgs, LuaValue},
+    util::{ReadOnlyArray, ReadOnlyMap},
+};
 
-pub fn create(
-    lua: &mlua::Lua
-) -> mlua::Result<mlua::Table> {
+pub fn create(lua: &mlua::Lua) -> mlua::Result<mlua::Table> {
     let table = lua.create_table()?;
 
     add_function(lua, &table, "get", lua_get)?;
-    add_function(lua, &table, "get_by_qualified_hash", lua_get_by_qualified_hash)?;
+    add_function(
+        lua,
+        &table,
+        "get_by_qualified_hash",
+        lua_get_by_qualified_hash,
+    )?;
     add_function(lua, &table, "get_by_impact_hash", lua_get_by_impact_hash)?;
-    add_function(lua, &table, "get_by_qualified_name", lua_get_by_qualified_name)?;
+    add_function(
+        lua,
+        &table,
+        "get_by_qualified_name",
+        lua_get_by_qualified_name,
+    )?;
     add_function(lua, &table, "get_by_impact_name", lua_get_by_impact_name)?;
     add_function(lua, &table, "get_all", lua_get_all)?;
     add_function(lua, &table, "of", lua_of)?;
@@ -23,10 +39,7 @@ pub fn create(
     Ok(table)
 }
 
-fn lua_get(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<Option<LuaValue>> {
+fn lua_get(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<Option<LuaValue>> {
     let hash_or_name = args.get::<Either<u32, String>>(0)?;
 
     match hash_or_name {
@@ -43,10 +56,7 @@ fn lua_get_by_qualified_hash(
     get_by_hash(lua, LookupKey::Qualified(hash))
 }
 
-fn lua_get_by_impact_hash(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<Option<LuaValue>> {
+fn lua_get_by_impact_hash(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<Option<LuaValue>> {
     let hash = args.get::<u32>(0)?;
     get_by_hash(lua, LookupKey::Impact(hash))
 }
@@ -59,18 +69,12 @@ fn lua_get_by_qualified_name(
     get_by_name(lua, LookupKey::Qualified(&name))
 }
 
-fn lua_get_by_impact_name(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<Option<LuaValue>> {
+fn lua_get_by_impact_name(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<Option<LuaValue>> {
     let name = args.get::<String>(0)?;
     get_by_name(lua, LookupKey::Impact(&name))
 }
 
-fn lua_get_all(
-    lua: &mlua::Lua,
-    _args: FunctionArgs,
-) -> mlua::Result<Table> {
+fn lua_get_all(lua: &mlua::Lua, _args: FunctionArgs) -> mlua::Result<Table> {
     let app_state = lua.app_data_ref::<AppState>().unwrap();
     let result = lua.create_table_with_capacity(app_state.type_registry().len(), 0)?;
 
@@ -79,7 +83,8 @@ fn lua_get_all(
             continue;
         }
 
-        let value = app_state.get_type(lua, r#type.index)?
+        let value = app_state
+            .get_type(lua, r#type.index)?
             .expect("invalid type index");
 
         result.push(value)?;
@@ -88,10 +93,7 @@ fn lua_get_all(
     Ok(result)
 }
 
-fn lua_of(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<LuaValue> {
+fn lua_of(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<LuaValue> {
     let app_state = lua.app_data_ref::<AppState>().unwrap();
 
     let value = args.get::<LuaValue>(0)?;
@@ -101,18 +103,12 @@ fn lua_of(
         None => return Ok(LuaValue::Nil),
     };
 
-    Ok(app_state.get_type(lua, index)?
-        .expect("invalid type index"))
+    Ok(app_state.get_type(lua, index)?.expect("invalid type index"))
 }
 
-fn get_by_hash(
-    lua: &mlua::Lua,
-    key: LookupKey<u32>,
-) -> mlua::Result<Option<LuaValue>> {
+fn get_by_hash(lua: &mlua::Lua, key: LookupKey<u32>) -> mlua::Result<Option<LuaValue>> {
     let app_state = lua.app_data_ref::<AppState>().unwrap();
-    let type_index = app_state.type_registry()
-        .get_by_hash(key)
-        .map(|t| t.index);
+    let type_index = app_state.type_registry().get_by_hash(key).map(|t| t.index);
 
     let type_index = match type_index {
         Some(index) => index,
@@ -122,14 +118,9 @@ fn get_by_hash(
     app_state.get_type(lua, type_index)
 }
 
-fn get_by_name(
-    lua: &mlua::Lua,
-    name: LookupKey<&str>,
-) -> mlua::Result<Option<LuaValue>> {
+fn get_by_name(lua: &mlua::Lua, name: LookupKey<&str>) -> mlua::Result<Option<LuaValue>> {
     let context = lua.app_data_ref::<AppState>().unwrap();
-    let type_index = context.type_registry()
-        .get_by_name(name)
-        .map(|t| t.index);
+    let type_index = context.type_registry().get_by_name(name).map(|t| t.index);
 
     let type_index = match type_index {
         Some(index) => index,
@@ -148,10 +139,7 @@ pub struct Type {
 }
 
 impl Type {
-
-    pub fn new(
-        handle: TypeHandle,
-    ) -> Self {
+    pub fn new(handle: TypeHandle) -> Self {
         Self {
             handle,
 
@@ -160,7 +148,6 @@ impl Type {
             attribute_cache: OnceCell::new(),
         }
     }
-
 }
 
 impl Deref for Type {
@@ -172,7 +159,6 @@ impl Deref for Type {
 }
 
 impl UserData for Type {
-
     fn add_fields<F: mlua::UserDataFields<Self>>(fields: &mut F) {
         fields.add_field_method_get("name", |_, this| Ok(this.name.clone()));
         fields.add_field_method_get("impact_name", |_, this| Ok(this.impact_name.clone()));
@@ -182,9 +168,11 @@ impl UserData for Type {
         fields.add_field_method_get("inner_type", |lua, this| {
             this.inner_type
                 .as_ref()
-                .map(|inner_type| lua.app_data_ref::<AppState>()
-                    .unwrap()
-                    .get_type(lua, *inner_type))
+                .map(|inner_type| {
+                    lua.app_data_ref::<AppState>()
+                        .unwrap()
+                        .get_type(lua, *inner_type)
+                })
                 .transpose()
         });
         fields.add_field_method_get("size", |_, this| Ok(this.size));
@@ -202,23 +190,24 @@ impl UserData for Type {
         fields.add_field_method_get("internal_hash", |_, this| Ok(this.internal_hash));
 
         fields.add_field_method_get("struct_fields", |lua, this| {
-            this.struct_field_cache.get_or_try_init(|| {
-                struct_fields_to_lua(lua, &lua.app_data_ref().unwrap(), this)
-            }).cloned()
+            this.struct_field_cache
+                .get_or_try_init(|| struct_fields_to_lua(lua, &lua.app_data_ref().unwrap(), this))
+                .cloned()
         });
         fields.add_field_method_get("enum_fields", |lua, this| {
-            this.enum_field_cache.get_or_try_init(|| {
-                enum_fields_to_lua(lua, this)
-            }).cloned()
+            this.enum_field_cache
+                .get_or_try_init(|| enum_fields_to_lua(lua, this))
+                .cloned()
         });
         // fields.add_field_method_get("default_value", |_, this| { });
         fields.add_field_method_get("attributes", |lua, this| {
-            this.attribute_cache.get_or_try_init(|| {
-                attributes_to_lua(lua, &lua.app_data_ref().unwrap(), &this.attributes)
-            }).cloned()
+            this.attribute_cache
+                .get_or_try_init(|| {
+                    attributes_to_lua(lua, &lua.app_data_ref().unwrap(), &this.attributes)
+                })
+                .cloned()
         });
     }
-
 }
 
 fn primitive_type_to_string(primitive_type: PrimitiveType) -> &'static str {
@@ -286,7 +275,9 @@ fn struct_field_to_lua(
     let attributes_key = lua.create_string("attributes")?;
 
     let name = LuaValue::String(lua.create_string(&field.name)?);
-    let r#type = context.get_type(lua, field.r#type)?.unwrap_or(LuaValue::Nil);
+    let r#type = context
+        .get_type(lua, field.r#type)?
+        .unwrap_or(LuaValue::Nil);
     let data_offset = LuaValue::Integer(field.data_offset as i64);
     let attributes = attributes_to_lua(lua, context, &field.attributes)?;
 
@@ -329,7 +320,8 @@ fn attribute_to_lua(
 
     let name = LuaValue::String(lua.create_string(&attribute.name)?);
     let namespace = namespace_to_lua(lua, &attribute.namespace)?;
-    let r#type = attribute.r#type
+    let r#type = attribute
+        .r#type
         .map(|r#type| context.get_type(lua, r#type))
         .transpose()?
         .and_then(|t| t)
@@ -344,10 +336,7 @@ fn attribute_to_lua(
     ReadOnlyMap::new(map).into_lua(lua)
 }
 
-fn namespace_to_lua(
-    lua: &mlua::Lua,
-    namespace: &Vec<String>,
-) -> mlua::Result<LuaValue> {
+fn namespace_to_lua(lua: &mlua::Lua, namespace: &Vec<String>) -> mlua::Result<LuaValue> {
     let mut array = Vec::with_capacity(namespace.len());
 
     for name in namespace {
@@ -357,10 +346,7 @@ fn namespace_to_lua(
     ReadOnlyArray::new(array).into_lua(lua)
 }
 
-fn enum_fields_to_lua(
-    lua: &mlua::Lua,
-    this: &Type,
-) -> mlua::Result<LuaValue> {
+fn enum_fields_to_lua(lua: &mlua::Lua, this: &Type) -> mlua::Result<LuaValue> {
     let mut map = IndexMap::with_capacity(this.enum_fields.len());
 
     for (name, field) in &this.enum_fields {
@@ -373,10 +359,7 @@ fn enum_fields_to_lua(
     ReadOnlyMap::new(map).into_lua(lua)
 }
 
-fn enum_field_to_lua(
-    lua: &mlua::Lua,
-    field: &EnumFieldMetadata,
-) -> mlua::Result<LuaValue> {
+fn enum_field_to_lua(lua: &mlua::Lua, field: &EnumFieldMetadata) -> mlua::Result<LuaValue> {
     let mut map = IndexMap::with_capacity(2);
 
     let name_key = lua.create_string("name")?;

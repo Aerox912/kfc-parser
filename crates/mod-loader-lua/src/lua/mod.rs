@@ -2,12 +2,12 @@ use std::{cell::RefCell, ops::Deref};
 
 use mlua::{MetaMethod, Table};
 
-mod cast;
 mod args;
+mod cast;
 mod error;
 
-pub use cast::*;
 pub use args::*;
+pub use cast::*;
 pub use error::*;
 
 pub type LuaValue = mlua::Value;
@@ -17,14 +17,13 @@ pub type LuaValue = mlua::Value;
 pub struct LuaVM(mlua::Lua);
 
 impl LuaVM {
-
     pub fn new() -> mlua::Result<Self> {
         let lua = mlua::Lua::new_with(
-            mlua::StdLib::COROUTINE |
-            mlua::StdLib::TABLE |
-            mlua::StdLib::STRING |
-            mlua::StdLib::UTF8 |
-            mlua::StdLib::MATH,
+            mlua::StdLib::COROUTINE
+                | mlua::StdLib::TABLE
+                | mlua::StdLib::STRING
+                | mlua::StdLib::UTF8
+                | mlua::StdLib::MATH,
             mlua::LuaOptions::default(),
         )?;
 
@@ -45,11 +44,23 @@ impl LuaVM {
 
         env.raw_set("utf8", self.copy_table(&globals.raw_get::<Table>("utf8")?)?)?; // table
         env.raw_set("math", self.copy_table(&globals.raw_get::<Table>("math")?)?)?; // table
-        env.raw_set("string", self.copy_table(&globals.raw_get::<Table>("string")?)?)?; // table
-        env.raw_set("table", self.copy_table(&globals.raw_get::<Table>("table")?)?)?; // table
-        env.raw_set("coroutine", self.copy_table(&globals.raw_get::<Table>("coroutine")?)?)?; // table
+        env.raw_set(
+            "string",
+            self.copy_table(&globals.raw_get::<Table>("string")?)?,
+        )?; // table
+        env.raw_set(
+            "table",
+            self.copy_table(&globals.raw_get::<Table>("table")?)?,
+        )?; // table
+        env.raw_set(
+            "coroutine",
+            self.copy_table(&globals.raw_get::<Table>("coroutine")?)?,
+        )?; // table
 
-        env.raw_set("collectgarbage", globals.raw_get::<LuaValue>("collectgarbage")?)?;
+        env.raw_set(
+            "collectgarbage",
+            globals.raw_get::<LuaValue>("collectgarbage")?,
+        )?;
         env.raw_set("type", globals.raw_get::<LuaValue>("type")?)?;
 
         env.raw_set("rawlen", globals.raw_get::<LuaValue>("rawlen")?)?;
@@ -80,7 +91,8 @@ impl LuaVM {
 
         // typeof uses __name or __type instead of returning "userdata"
         // falls back to the default type function if it is not userdata
-        let type_fn = env.raw_get::<LuaValue>("type")?
+        let type_fn = env
+            .raw_get::<LuaValue>("type")?
             .as_function()
             .expect("type is not a function")
             .clone();
@@ -94,13 +106,13 @@ impl LuaVM {
 
                         // TODO: check for function as well
                         if let LuaValue::String(_) = r#type {
-                            return Ok(r#type)
+                            return Ok(r#type);
                         }
                     }
 
                     type_fn.call(value)
                 }
-            })?
+            })?,
         )?;
 
         Ok(env)
@@ -122,7 +134,6 @@ impl LuaVM {
 
         Ok(to)
     }
-
 }
 
 impl Deref for LuaVM {
@@ -133,9 +144,7 @@ impl Deref for LuaVM {
     }
 }
 
-fn register_warn_function(
-    lua: &mlua::Lua,
-) {
+fn register_warn_function(lua: &mlua::Lua) {
     lua.set_warning_function({
         let output = RefCell::new(String::new());
 
@@ -160,4 +169,3 @@ fn register_warn_function(
         }
     });
 }
-

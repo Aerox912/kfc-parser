@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use crate::{alias::{Path, PathBuf}, ModEnvironmentErrorReport, ModRegistry};
+use crate::{
+    ModEnvironmentErrorReport, ModRegistry,
+    alias::{Path, PathBuf},
+};
 
 struct ModEnvironmentInner {
     game_dir: PathBuf,
@@ -16,10 +19,7 @@ pub struct ModEnvironment {
 }
 
 impl ModEnvironment {
-
-    pub fn load(
-        game_dir: impl AsRef<Path>,
-    ) -> Result<Self, ModEnvironmentErrorReport> {
+    pub fn load(game_dir: impl AsRef<Path>) -> Result<Self, ModEnvironmentErrorReport> {
         let game_dir = game_dir.as_ref().to_path_buf();
         let cache_dir = game_dir.join(".cache");
         let mods_dir = game_dir.join("mods");
@@ -51,5 +51,4 @@ impl ModEnvironment {
     pub fn mod_registry(&self) -> &ModRegistry {
         &self.inner.registry
     }
-
 }

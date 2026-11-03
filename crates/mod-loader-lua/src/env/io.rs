@@ -2,12 +2,17 @@ use std::io::BufReader;
 
 use mod_loader::Mod;
 
-use crate::{alias::{Path, PathBuf}, env::{util::{add_function, add_function_with_mod}, AppFeatures, AppState, Buffer}, log::{warn, warn_span}, lua::{Either, FunctionArgs, LuaError}};
+use crate::{
+    alias::{Path, PathBuf},
+    env::{
+        AppFeatures, AppState, Buffer,
+        util::{add_function, add_function_with_mod},
+    },
+    log::{warn, warn_span},
+    lua::{Either, FunctionArgs, LuaError},
+};
 
-pub fn create(
-    lua: &mlua::Lua,
-    r#mod: Mod,
-) -> mlua::Result<mlua::Table> {
+pub fn create(lua: &mlua::Lua, r#mod: Mod) -> mlua::Result<mlua::Table> {
     let table = lua.create_table()?;
 
     add_function_with_mod(lua, &table, "read", &r#mod, lua_read)?;
@@ -17,7 +22,12 @@ pub fn create(
     add_function_with_mod(lua, &table, "is_file", &r#mod, lua_is_file)?;
     add_function_with_mod(lua, &table, "is_directory", &r#mod, lua_is_directory)?;
     add_function(lua, &table, "name", lua_name)?;
-    add_function(lua, &table, "name_without_extension", lua_name_without_extension)?;
+    add_function(
+        lua,
+        &table,
+        "name_without_extension",
+        lua_name_without_extension,
+    )?;
     add_function(lua, &table, "extension", lua_extension)?;
     add_function(lua, &table, "parent", lua_parent)?;
     add_function(lua, &table, "join", lua_join)?;
@@ -26,11 +36,7 @@ pub fn create(
     Ok(table)
 }
 
-fn lua_read(
-    _lua: &mlua::Lua,
-    args: FunctionArgs,
-    r#mod: &Mod,
-) -> mlua::Result<Buffer> {
+fn lua_read(_lua: &mlua::Lua, args: FunctionArgs, r#mod: &Mod) -> mlua::Result<Buffer> {
     let path = args.get::<String>(0)?;
 
     let mut fs = r#mod.fs();
@@ -66,11 +72,7 @@ fn lua_read_to_string(
     lua.create_string(&buffer)
 }
 
-fn lua_list_files(
-    _lua: &mlua::Lua,
-    args: FunctionArgs,
-    r#mod: &Mod,
-) -> mlua::Result<Vec<String>> {
+fn lua_list_files(_lua: &mlua::Lua, args: FunctionArgs, r#mod: &Mod) -> mlua::Result<Vec<String>> {
     let path = args.get::<String>(0)?;
 
     let fs = r#mod.fs();
@@ -101,88 +103,65 @@ fn lua_list_files(
     Ok(result)
 }
 
-fn lua_exists(
-    _lua: &mlua::Lua,
-    args: FunctionArgs,
-    r#mod: &Mod,
-) -> mlua::Result<bool> {
+fn lua_exists(_lua: &mlua::Lua, args: FunctionArgs, r#mod: &Mod) -> mlua::Result<bool> {
     let path = args.get::<String>(0)?;
     let fs = r#mod.fs();
 
     Ok(fs.exists(path))
 }
 
-fn lua_is_file(
-    _lua: &mlua::Lua,
-    args: FunctionArgs,
-    r#mod: &Mod,
-) -> mlua::Result<bool> {
+fn lua_is_file(_lua: &mlua::Lua, args: FunctionArgs, r#mod: &Mod) -> mlua::Result<bool> {
     let path = args.get::<String>(0)?;
     let mut fs = r#mod.fs();
 
     Ok(fs.is_file(path))
 }
 
-fn lua_is_directory(
-    _lua: &mlua::Lua,
-    args: FunctionArgs,
-    r#mod: &Mod,
-) -> mlua::Result<bool> {
+fn lua_is_directory(_lua: &mlua::Lua, args: FunctionArgs, r#mod: &Mod) -> mlua::Result<bool> {
     let path = args.get::<String>(0)?;
     let mut fs = r#mod.fs();
 
     Ok(fs.is_directory(path))
 }
 
-fn lua_name(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<mlua::String> {
+fn lua_name(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<mlua::String> {
     let path = args.get::<String>(0)?;
 
-    PathBuf::from(path).file_name()
+    PathBuf::from(path)
+        .file_name()
         .map(|s| lua.create_string(s))
         .unwrap_or_else(|| lua.create_string(""))
 }
 
-fn lua_name_without_extension(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<mlua::String> {
+fn lua_name_without_extension(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<mlua::String> {
     let path = args.get::<String>(0)?;
 
-    PathBuf::from(path).file_stem()
+    PathBuf::from(path)
+        .file_stem()
         .map(|s| lua.create_string(s))
         .unwrap_or_else(|| lua.create_string(""))
 }
 
-fn lua_extension(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<mlua::String> {
+fn lua_extension(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<mlua::String> {
     let path = args.get::<String>(0)?;
 
-    PathBuf::from(path).extension()
+    PathBuf::from(path)
+        .extension()
         .map(|s| lua.create_string(s))
         .unwrap_or_else(|| lua.create_string(""))
 }
 
-fn lua_parent(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<mlua::String> {
+fn lua_parent(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<mlua::String> {
     let path = args.get::<String>(0)?;
 
-    PathBuf::from(path).parent()
+    PathBuf::from(path)
+        .parent()
         .map(|p| into_forward_slash(p.to_path_buf()))
         .map(|s| lua.create_string(s.as_str()))
         .unwrap_or_else(|| lua.create_string(""))
 }
 
-fn lua_join(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<mlua::String> {
+fn lua_join(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<mlua::String> {
     let mut path = PathBuf::new();
 
     for p in 0..args.len() {
@@ -195,10 +174,7 @@ fn lua_join(
     lua.create_string(path.as_str())
 }
 
-fn lua_export(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<()> {
+fn lua_export(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<()> {
     let app_state = lua.app_data_ref::<AppState>().unwrap();
 
     if !app_state.has_feature(AppFeatures::EXPORT) {
@@ -214,7 +190,7 @@ fn lua_export(
 
     let path = export_dir.join(
         sanitize_path(Path::new(&path))
-            .map_err(|e| LuaError::generic(format!("invalid path: {e}")))?
+            .map_err(|e| LuaError::generic(format!("invalid path: {e}")))?,
     );
 
     if path.exists() && !path.is_file() {
@@ -232,36 +208,34 @@ fn lua_export(
     match buffer {
         Either::A(data) => {
             std::fs::write(&path, data)
-                .map_err(|e| {
-                    LuaError::generic(format!("failed to write file: {e}"))
-                })?;
-        },
+                .map_err(|e| LuaError::generic(format!("failed to write file: {e}")))?;
+        }
         Either::B(buf) => {
             std::fs::write(&path, buf.data()?)
-                .map_err(|e| {
-                    LuaError::generic(format!("failed to write file: {e}"))
-                })?;
-        },
+                .map_err(|e| LuaError::generic(format!("failed to write file: {e}")))?;
+        }
     }
 
     Ok(())
 }
 
-fn sanitize_path(
-    path: &Path,
-) -> std::io::Result<PathBuf> {
+fn sanitize_path(path: &Path) -> std::io::Result<PathBuf> {
     let mut result = PathBuf::new();
 
     for component in path.components() {
         match component {
-            camino::Utf8Component::Prefix(_) =>
-                return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)),
-            camino::Utf8Component::RootDir =>
-                return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)),
-            camino::Utf8Component::CurDir => {}
-            camino::Utf8Component::ParentDir => if !result.pop() {
+            camino::Utf8Component::Prefix(_) => {
                 return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
-            },
+            }
+            camino::Utf8Component::RootDir => {
+                return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+            }
+            camino::Utf8Component::CurDir => {}
+            camino::Utf8Component::ParentDir => {
+                if !result.pop() {
+                    return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+                }
+            }
             camino::Utf8Component::Normal(part) => result.push(part),
         }
     }

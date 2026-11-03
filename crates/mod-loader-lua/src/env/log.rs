@@ -1,12 +1,11 @@
 use mlua::Table;
 
-use crate::{lua::LuaValue, log::{info, info_span, warn, warn_span}};
+use crate::{
+    log::{info, info_span, warn, warn_span},
+    lua::LuaValue,
+};
 
-pub fn register(
-    lua: &mlua::Lua,
-    env: &Table,
-    mod_id: &str,
-) -> mlua::Result<()> {
+pub fn register(lua: &mlua::Lua, env: &Table, mod_id: &str) -> mlua::Result<()> {
     env.raw_set(
         "print",
         lua.create_function({
@@ -29,7 +28,7 @@ pub fn register(
 
                 Ok(())
             }
-        })?
+        })?,
     )?;
 
     env.raw_set(
@@ -54,7 +53,7 @@ pub fn register(
 
                 Ok(())
             }
-        })?
+        })?,
     )?;
 
     Ok(())

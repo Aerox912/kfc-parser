@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::guid::Guid;
 use crate::hash::compute_content_guid;
-use crate::{container::StaticHash, Hash32};
+use crate::{Hash32, container::StaticHash};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub struct ContentHash {
@@ -17,7 +17,6 @@ pub struct ContentHash {
 }
 
 impl ContentHash {
-
     pub const NONE: Self = Self {
         size: 0,
         hash0: 0,
@@ -27,12 +26,7 @@ impl ContentHash {
 
     #[inline]
     #[must_use]
-    pub const fn new(
-        size: u32,
-        hash0: u32,
-        hash1: u32,
-        hash2: u32,
-    ) -> Self {
+    pub const fn new(size: u32, hash0: u32, hash1: u32, hash2: u32) -> Self {
         Self {
             size,
             hash0,
@@ -48,8 +42,8 @@ impl ContentHash {
     #[inline]
     #[must_use]
     pub fn from_data(data: &[u8]) -> Self {
-        let data_size = u32::try_from(data.len())
-            .expect("data may not be larger than 4294967295 bytes");
+        let data_size =
+            u32::try_from(data.len()).expect("data may not be larger than 4294967295 bytes");
         let guid = compute_content_guid(data, 0);
 
         Self::new(
@@ -131,22 +125,17 @@ impl ContentHash {
         let hash2 = self.hash2.to_le_bytes();
 
         Guid::new([
-            size[0], size[1], size[2], size[3],
-            hash0[0], hash0[1], hash0[2], hash0[3],
-            hash1[0], hash1[1], hash1[2], hash1[3],
-            hash2[0], hash2[1], hash2[2], hash2[3],
+            size[0], size[1], size[2], size[3], hash0[0], hash0[1], hash0[2], hash0[3], hash1[0],
+            hash1[1], hash1[2], hash1[3], hash2[0], hash2[1], hash2[2], hash2[3],
         ])
     }
-
 }
 
 impl StaticHash for ContentHash {
-
     #[inline]
     fn static_hash(&self) -> u32 {
         self.hash0
     }
-
 }
 
 impl FromStr for ContentHash {
@@ -170,7 +159,6 @@ impl Display for ContentHash {
 }
 
 impl ContentHash {
-
     #[inline]
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         Guid::read(reader).map(Into::into)
@@ -180,7 +168,6 @@ impl ContentHash {
     pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         Guid::from(*self).write(writer)
     }
-
 }
 
 impl From<[u8; 16]> for ContentHash {

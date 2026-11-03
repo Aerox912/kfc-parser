@@ -14,11 +14,7 @@ pub struct PbrVertex {
     pub color: [u8; 4],
 }
 
-pub fn decode_pbr_vertex(
-    data: &[u32],
-    offset: Vec3,
-    scale: Vec3,
-) -> PbrVertex {
+pub fn decode_pbr_vertex(data: &[u32], offset: Vec3, scale: Vec3) -> PbrVertex {
     let packed_vertex_1 = data[0];
     let packed_vertex_2 = data[1];
     let packed_normal = data[2];
@@ -30,7 +26,8 @@ pub fn decode_pbr_vertex(
         (packed_vertex_1 >> 11) as f32,
         (((packed_vertex_1 & 0x7FF) << 10) | (packed_vertex_2 >> 21)) as f32,
         (packed_vertex_2 & 0x1FFFFF) as f32,
-    ) * scale + offset;
+    ) * scale
+        + offset;
 
     let normal = Vec3::new(
         ((packed_normal << 22) >> 22) as f32 / 511.0,

@@ -1,6 +1,11 @@
 use std::borrow::Borrow;
 
-use kfc::{guid::Guid, reflection::{EnumFieldMetadata, LookupKey, PrimitiveType, TypeHandle, TypeMetadata, TypeRegistry}};
+use kfc::{
+    guid::Guid,
+    reflection::{
+        EnumFieldMetadata, LookupKey, PrimitiveType, TypeHandle, TypeMetadata, TypeRegistry,
+    },
+};
 
 mod error;
 mod util;
@@ -350,11 +355,7 @@ where
         Self::from_impl(&r#type, data, 0)
     }
 
-    fn from_impl(
-        r#type: &TypeHandle<T>,
-        data: &D,
-        offset: usize,
-    ) -> Result<Self, MappingError> {
+    fn from_impl(r#type: &TypeHandle<T>, data: &D, offset: usize) -> Result<Self, MappingError> {
         match r#type.primitive_type {
             PrimitiveType::None => Ok(Self::None),
             PrimitiveType::Bool => Ok(get_bool(data.borrow(), offset)?.into()),
@@ -376,10 +377,18 @@ where
             PrimitiveType::Typedef => Self::from_typedef(r#type, data, offset),
             PrimitiveType::Struct => Self::from_struct(r#type, data, offset),
             PrimitiveType::StaticArray => Self::from_static_array(r#type, data, offset),
-            PrimitiveType::DsArray => Err(MappingError::UnsupportedOperation("DsArrays are not supported yet")),
-            PrimitiveType::DsString => Err(MappingError::UnsupportedOperation("DsStrings are not supported yet")),
-            PrimitiveType::DsOptional => Err(MappingError::UnsupportedOperation("DsOptionals are not supported yet")),
-            PrimitiveType::DsVariant => Err(MappingError::UnsupportedOperation("DsVariants are not supported yet")),
+            PrimitiveType::DsArray => Err(MappingError::UnsupportedOperation(
+                "DsArrays are not supported yet",
+            )),
+            PrimitiveType::DsString => Err(MappingError::UnsupportedOperation(
+                "DsStrings are not supported yet",
+            )),
+            PrimitiveType::DsOptional => Err(MappingError::UnsupportedOperation(
+                "DsOptionals are not supported yet",
+            )),
+            PrimitiveType::DsVariant => Err(MappingError::UnsupportedOperation(
+                "DsVariants are not supported yet",
+            )),
             PrimitiveType::BlobArray => Self::from_blob_array(r#type, data, offset),
             PrimitiveType::BlobString => Self::from_blob_string(data, offset),
             PrimitiveType::BlobOptional => Self::from_blob_optional(r#type, data, offset),
@@ -390,11 +399,7 @@ where
     }
 
     #[inline]
-    fn from_enum(
-        r#type: &TypeHandle<T>,
-        data: &D,
-        offset: usize,
-    ) -> Result<Self, MappingError> {
+    fn from_enum(r#type: &TypeHandle<T>, data: &D, offset: usize) -> Result<Self, MappingError> {
         let enum_value_type = get_inner_type(r#type);
         let enum_value = match enum_value_type.primitive_type {
             PrimitiveType::UInt8 => get_u8(data.borrow(), offset)? as u64,
@@ -405,7 +410,10 @@ where
             PrimitiveType::SInt32 => get_i32(data.borrow(), offset)? as u64,
             PrimitiveType::UInt64 => get_u64(data.borrow(), offset)?,
             PrimitiveType::SInt64 => get_i64(data.borrow(), offset)? as u64,
-            _ => panic!("Invalid enum value type: {:?}", enum_value_type.primitive_type),
+            _ => panic!(
+                "Invalid enum value type: {:?}",
+                enum_value_type.primitive_type
+            ),
         };
 
         Ok(MappedEnum::new(r#type.clone(), enum_value).into())
@@ -452,26 +460,14 @@ where
     }
 
     #[inline]
-    fn from_typedef(
-        r#type: &TypeHandle<T>,
-        data: &D,
-        offset: usize,
-    ) -> Result<Self, MappingError> {
+    fn from_typedef(r#type: &TypeHandle<T>, data: &D, offset: usize) -> Result<Self, MappingError> {
         let inner_type = get_inner_type(r#type);
         Self::from_impl(&inner_type, data, offset)
     }
 
     #[inline]
-    fn from_struct(
-        r#type: &TypeHandle<T>,
-        data: &D,
-        offset: usize,
-    ) -> Result<Self, MappingError> {
-        Ok(MappedStruct::new(
-            r#type.clone(),
-            data.clone(),
-            offset
-        ).into())
+    fn from_struct(r#type: &TypeHandle<T>, data: &D, offset: usize) -> Result<Self, MappingError> {
+        Ok(MappedStruct::new(r#type.clone(), data.clone(), offset).into())
     }
 
     #[inline]
@@ -484,8 +480,9 @@ where
             r#type.clone(),
             data.clone(),
             offset,
-            r#type.field_count as usize
-        ).into())
+            r#type.field_count as usize,
+        )
+        .into())
     }
 
     #[inline]
@@ -497,36 +494,20 @@ where
         let blob_offset = get_u32(data.borrow(), offset)? as usize;
         let count = get_u32(data.borrow(), offset + 4)? as usize;
 
-        Ok(MappedArray::new(
-            r#type.clone(),
-            data.clone(),
-            offset + blob_offset,
-            count
-        ).into())
+        Ok(MappedArray::new(r#type.clone(), data.clone(), offset + blob_offset, count).into())
     }
 
     #[inline]
-    fn from_blob_string(
-        data: &D,
-        offset: usize,
-    ) -> Result<Self, MappingError> {
+    fn from_blob_string(data: &D, offset: usize) -> Result<Self, MappingError> {
         let blob_offset = get_u32(data.borrow(), offset)? as usize;
 
         if blob_offset == 0 {
-            return Ok(MappedString::new(
-                data.clone(),
-                0,
-                0
-            )?.into());
+            return Ok(MappedString::new(data.clone(), 0, 0)?.into());
         }
 
         let blob_size = get_u32(data.borrow(), offset + 4)? as usize;
 
-        Ok(MappedString::new(
-            data.clone(),
-            offset + blob_offset,
-            blob_size,
-        )?.into())
+        Ok(MappedString::new(data.clone(), offset + blob_offset, blob_size)?.into())
     }
 
     #[inline]
@@ -537,28 +518,19 @@ where
     ) -> Result<Self, MappingError> {
         let inner_type = match get_inner_type_opt(r#type) {
             Some(t) => t,
-            None => return Ok(MappedOptional::new(
-                r#type.clone(),
-                None
-            ).into()),
+            None => return Ok(MappedOptional::new(r#type.clone(), None).into()),
         };
         let blob_offset = get_u32(data.borrow(), offset)? as usize;
 
         if blob_offset == 0 {
-            return Ok(MappedOptional::new(
-                r#type.clone(),
-                None
-            ).into());
+            return Ok(MappedOptional::new(r#type.clone(), None).into());
         }
 
         Ok(MappedOptional::new(
             r#type.clone(),
-            Some(Self::from_impl(
-                &inner_type,
-                data,
-                offset + blob_offset
-            )?)
-        ).into())
+            Some(Self::from_impl(&inner_type, data, offset + blob_offset)?),
+        )
+        .into())
     }
 
     #[inline]
@@ -572,28 +544,23 @@ where
         // let size = get_u32(data.borrow(), 8)? as usize;
 
         let variant_type = if blob_offset == 0 && variant_hash == 0 {
-            r#type.inner_type()
-                .expect("invalid variant type")
+            r#type.inner_type().expect("invalid variant type")
         } else {
-            let variant_type = r#type.type_registry().borrow()
+            let variant_type = r#type
+                .type_registry()
+                .borrow()
                 .get_by_hash(LookupKey::Qualified(variant_hash))
                 .map(|t| t.index)
                 .ok_or(MappingError::InvalidTypeHash(variant_hash))?;
 
-            TypeHandle::new(
-                r#type.type_registry().clone(),
-                variant_type
-            )
+            TypeHandle::new(r#type.type_registry().clone(), variant_type)
         };
 
         Ok(MappedVariant::new(
             r#type.clone(),
-            MappedStruct::new(
-                variant_type,
-                data.clone(),
-                offset + blob_offset + 4
-            ),
-        ).into())
+            MappedStruct::new(variant_type, data.clone(), offset + blob_offset + 4),
+        )
+        .into())
     }
 
     #[inline]
@@ -604,23 +571,16 @@ where
     ) -> Result<Self, MappingError> {
         let bytes: &[u8; 16] = get_bytes(data.borrow(), offset, 16)?.try_into().unwrap();
 
-        Ok(MappedReference::new(
-            r#type.clone(),
-            Guid::from(bytes),
-        ).into())
+        Ok(MappedReference::new(r#type.clone(), Guid::from(bytes)).into())
     }
 
     #[inline]
-    fn from_guid(
-        data: &D,
-        offset: usize,
-    ) -> Result<Self, MappingError> {
+    fn from_guid(data: &D, offset: usize) -> Result<Self, MappingError> {
         let bytes: &[u8; 16] = get_bytes(data.borrow(), offset, 16)?.try_into().unwrap();
         let guid = Guid::from(bytes);
 
         Ok(guid.into())
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -640,7 +600,11 @@ where
             return Err(MappingError::UnexpectedEndOfData);
         }
 
-        Ok(Self { data, offset, length })
+        Ok(Self {
+            data,
+            offset,
+            length,
+        })
     }
 
     #[inline]
@@ -681,7 +645,9 @@ where
 
     #[inline]
     pub fn name(&self) -> Option<&str> {
-        self.r#type.enum_fields.values()
+        self.r#type
+            .enum_fields
+            .values()
             .find(|f| f.value == self.value)
             .map(|f| f.name.as_str())
     }
@@ -738,7 +704,6 @@ where
     pub fn iter(&self) -> BitIter<'_> {
         BitIter::new(self)
     }
-
 }
 
 pub struct BitIter<'a> {
@@ -752,10 +717,7 @@ pub struct BitIter<'a> {
 }
 
 impl<'a> BitIter<'a> {
-
-    pub fn new<T>(
-        bitmask: &'a MappedBitmask<T>
-    ) -> Self
+    pub fn new<T>(bitmask: &'a MappedBitmask<T>) -> Self
     where
         T: Borrow<TypeRegistry> + Clone,
     {
@@ -769,7 +731,6 @@ impl<'a> BitIter<'a> {
             check_unnamed: false,
         }
     }
-
 }
 
 impl<'a> Iterator for BitIter<'a> {
@@ -813,10 +774,7 @@ pub struct MappedBit<'a> {
 
 impl<'a> MappedBit<'a> {
     #[inline]
-    pub fn new(
-        name: Option<&'a str>,
-        value: u64,
-    ) -> Self {
+    pub fn new(name: Option<&'a str>, value: u64) -> Self {
         Self { name, value }
     }
 
@@ -846,7 +804,7 @@ where
     pub fn new(r#type: TypeHandle<T>, value: Option<MappedValue<D, T>>) -> Self {
         Self {
             r#type,
-            value: value.map(Box::new)
+            value: value.map(Box::new),
         }
     }
 
@@ -879,10 +837,7 @@ where
 {
     #[inline]
     fn new(base_type: TypeHandle<T>, value: MappedStruct<D, T>) -> Self {
-        Self {
-            base_type,
-            value
-        }
+        Self { base_type, value }
     }
 
     #[inline]
@@ -904,7 +859,6 @@ where
     pub fn into_value(self) -> MappedStruct<D, T> {
         self.value
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -920,11 +874,7 @@ where
     T: Borrow<TypeRegistry> + Clone,
 {
     #[inline]
-    fn new(
-        r#type: TypeHandle<T>,
-        data: D,
-        offset: usize,
-    ) -> Self {
+    fn new(r#type: TypeHandle<T>, data: D, offset: usize) -> Self {
         Self {
             r#type,
             data,
@@ -942,10 +892,7 @@ where
         &self.data
     }
 
-    pub fn get(
-        &self,
-        field_name: &str
-    ) -> Result<Option<MappedValue<D, T>>, MappingError> {
+    pub fn get(&self, field_name: &str) -> Result<Option<MappedValue<D, T>>, MappingError> {
         let field = match self.r#type.get_field_metadata(field_name) {
             Some(value) => value,
             None => return Ok(None),
@@ -958,30 +905,23 @@ where
         };
 
         let field_offset = field.data_offset as usize;
-        let field_value = MappedValue::from_impl(
-            &field_type,
-            &self.data,
-            self.offset + field_offset
-        )?;
+        let field_value =
+            MappedValue::from_impl(&field_type, &self.data, self.offset + field_offset)?;
 
         Ok(Some(field_value))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = Result<(&str, MappedValue<D, T>), MappingError>> {
-        self.r#type.iter_fields()
-            .map(|field| {
-                let type_registry = self.r#type.type_registry().clone();
-                let field_type = TypeHandle::try_new(type_registry, field.r#type)
-                    .ok_or(MappingError::InvalidTypeIndex(field.r#type))?;
-                let field_offset = field.data_offset as usize;
-                let field_value = MappedValue::from_impl(
-                    &field_type,
-                    &self.data,
-                    self.offset + field_offset
-                )?;
+        self.r#type.iter_fields().map(|field| {
+            let type_registry = self.r#type.type_registry().clone();
+            let field_type = TypeHandle::try_new(type_registry, field.r#type)
+                .ok_or(MappingError::InvalidTypeIndex(field.r#type))?;
+            let field_offset = field.data_offset as usize;
+            let field_value =
+                MappedValue::from_impl(&field_type, &self.data, self.offset + field_offset)?;
 
-                Ok((field.name.as_str(), field_value))
-            })
+            Ok((field.name.as_str(), field_value))
+        })
     }
 
     #[inline]
@@ -1006,7 +946,6 @@ where
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -1024,12 +963,7 @@ where
     T: Borrow<TypeRegistry> + Clone,
 {
     #[inline]
-    fn new(
-        r#type: TypeHandle<T>,
-        data: D,
-        offset: usize,
-        length: usize,
-    ) -> Self {
+    fn new(r#type: TypeHandle<T>, data: D, offset: usize, length: usize) -> Self {
         let element_type = get_inner_type(&r#type);
 
         Self {
@@ -1057,10 +991,7 @@ where
     }
 
     #[inline]
-    pub fn get(
-        &self,
-        index: usize
-    ) -> Result<Option<MappedValue<D, T>>, MappingError> {
+    pub fn get(&self, index: usize) -> Result<Option<MappedValue<D, T>>, MappingError> {
         if index >= self.length {
             return Ok(None);
         }
@@ -1071,14 +1002,12 @@ where
         Ok(Some(MappedValue::from_impl(
             &self.element_type,
             &self.data,
-            self.offset + element_offset
+            self.offset + element_offset,
         )?))
     }
 
     #[inline]
-    pub fn iter(
-        &self
-    ) -> impl Iterator<Item = Result<MappedValue<D, T>, MappingError>> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Result<MappedValue<D, T>, MappingError>> + '_ {
         (0..self.length).filter_map(move |index| self.get(index).transpose())
     }
 

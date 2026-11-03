@@ -1,11 +1,11 @@
+mod alias;
+mod config;
+mod env;
+mod error;
 mod log;
 mod registry;
-mod env;
-mod alias;
-mod error;
-mod config;
 
-pub use registry::*;
+pub use config::*;
 pub use env::*;
 pub use error::*;
-pub use config::*;
+pub use registry::*;

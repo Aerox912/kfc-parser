@@ -1,14 +1,14 @@
 use super::{EventStream, ImpactCommand, ImpactNode, ImpactProgram, ImpactVariable};
 
-mod tokenizer;
-mod parser;
-mod error;
-mod cursor;
-mod token;
 mod assembler;
+mod cursor;
 mod data;
+mod error;
+mod parser;
 mod text;
+mod token;
+mod tokenizer;
 
 pub use assembler::*;
-pub use error::*;
 pub use data::*;
+pub use error::*;

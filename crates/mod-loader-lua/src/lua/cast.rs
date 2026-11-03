@@ -3,14 +3,15 @@ use std::borrow::Cow;
 use half::f16;
 use mlua::BorrowedBytes;
 
-use crate::{lua::{LuaError, LuaValue}, util::short_type_name};
+use crate::{
+    lua::{LuaError, LuaValue},
+    util::short_type_name,
+};
 
 pub trait CastLua<'a> {
     type Output;
 
-    fn try_cast_lua(
-        value: &'a LuaValue,
-    ) -> mlua::Result<Option<Self::Output>>;
+    fn try_cast_lua(value: &'a LuaValue) -> mlua::Result<Option<Self::Output>>;
 
     fn name() -> Cow<'static, str>;
 }
@@ -18,9 +19,7 @@ pub trait CastLua<'a> {
 impl<'a> CastLua<'a> for LuaValue {
     type Output = &'a Self;
 
-    fn try_cast_lua(
-        value: &'a LuaValue,
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &'a LuaValue) -> mlua::Result<Option<Self::Output>> {
         Ok(Some(value))
     }
 
@@ -32,9 +31,7 @@ impl<'a> CastLua<'a> for LuaValue {
 impl<'a> CastLua<'a> for mlua::AnyUserData {
     type Output = &'a Self;
 
-    fn try_cast_lua(
-        value: &'a LuaValue,
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &'a LuaValue) -> mlua::Result<Option<Self::Output>> {
         match value {
             LuaValue::UserData(ud) => Ok(Some(ud)),
             _ => Ok(None),
@@ -49,9 +46,7 @@ impl<'a> CastLua<'a> for mlua::AnyUserData {
 impl<'a> CastLua<'a> for mlua::Table {
     type Output = &'a Self;
 
-    fn try_cast_lua(
-        value: &'a LuaValue,
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &'a LuaValue) -> mlua::Result<Option<Self::Output>> {
         match value {
             LuaValue::Table(t) => Ok(Some(t)),
             _ => Ok(None),
@@ -66,9 +61,7 @@ impl<'a> CastLua<'a> for mlua::Table {
 impl CastLua<'_> for bool {
     type Output = Self;
 
-    fn try_cast_lua(
-        value: &LuaValue,
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &LuaValue) -> mlua::Result<Option<Self::Output>> {
         match value {
             LuaValue::Boolean(b) => Ok(Some(*b)),
             _ => Ok(None),
@@ -83,9 +76,7 @@ impl CastLua<'_> for bool {
 impl CastLua<'_> for String {
     type Output = Self;
 
-    fn try_cast_lua(
-        value: &LuaValue,
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &LuaValue) -> mlua::Result<Option<Self::Output>> {
         match value {
             LuaValue::String(s) => Ok(Some(s.to_str()?.to_string())),
             LuaValue::Number(n) => Ok(Some(n.to_string())),
@@ -102,9 +93,7 @@ impl CastLua<'_> for String {
 impl<'a> CastLua<'a> for &[u8] {
     type Output = BorrowedBytes<'a>;
 
-    fn try_cast_lua(
-        value: &'a LuaValue,
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &'a LuaValue) -> mlua::Result<Option<Self::Output>> {
         match value {
             LuaValue::String(s) => Ok(Some(s.as_bytes())),
             _ => Ok(None),
@@ -117,62 +106,150 @@ impl<'a> CastLua<'a> for &[u8] {
 }
 
 macro_rules! into {
-    ($n:expr, u8) => { $n as u64 };
-    ($n:expr, u16) => { $n as u64 };
-    ($n:expr, u32) => { $n as u64 };
-    ($n:expr, u64) => { $n as u64 };
-    ($n:expr, usize) => { $n as u64 };
-    ($n:expr, i8) => { $n as i64 };
-    ($n:expr, i16) => { $n as i64 };
-    ($n:expr, i32) => { $n as i64 };
-    ($n:expr, i64) => { $n as i64 };
-    ($n:expr, isize) => { $n as i64 };
-    ($n:expr, f16) => { $n.to_f64_const() };
-    ($n:expr, f32) => { $n as f64 };
-    ($n:expr, f64) => { $n as f64 };
+    ($n:expr, u8) => {
+        $n as u64
+    };
+    ($n:expr, u16) => {
+        $n as u64
+    };
+    ($n:expr, u32) => {
+        $n as u64
+    };
+    ($n:expr, u64) => {
+        $n as u64
+    };
+    ($n:expr, usize) => {
+        $n as u64
+    };
+    ($n:expr, i8) => {
+        $n as i64
+    };
+    ($n:expr, i16) => {
+        $n as i64
+    };
+    ($n:expr, i32) => {
+        $n as i64
+    };
+    ($n:expr, i64) => {
+        $n as i64
+    };
+    ($n:expr, isize) => {
+        $n as i64
+    };
+    ($n:expr, f16) => {
+        $n.to_f64_const()
+    };
+    ($n:expr, f32) => {
+        $n as f64
+    };
+    ($n:expr, f64) => {
+        $n as f64
+    };
 }
 
 macro_rules! primitive_type {
-    (u8) => { u64 };
-    (u16) => { u64 };
-    (u32) => { u64 };
-    (u64) => { u64 };
-    (usize) => { u64 };
-    (i8) => { i64 };
-    (i16) => { i64 };
-    (i32) => { i64 };
-    (i64) => { i64 };
-    (isize) => { i64 };
-    (f16) => { f64 };
-    (f32) => { f64 };
-    (f64) => { f64 };
+    (u8) => {
+        u64
+    };
+    (u16) => {
+        u64
+    };
+    (u32) => {
+        u64
+    };
+    (u64) => {
+        u64
+    };
+    (usize) => {
+        u64
+    };
+    (i8) => {
+        i64
+    };
+    (i16) => {
+        i64
+    };
+    (i32) => {
+        i64
+    };
+    (i64) => {
+        i64
+    };
+    (isize) => {
+        i64
+    };
+    (f16) => {
+        f64
+    };
+    (f32) => {
+        f64
+    };
+    (f64) => {
+        f64
+    };
 }
 
 macro_rules! from {
-    ($n:expr, f16) => { f16::from_f64($n) };
-    ($n:expr, $ty:ident) => { $n as $ty };
+    ($n:expr, f16) => {
+        f16::from_f64($n)
+    };
+    ($n:expr, $ty:ident) => {
+        $n as $ty
+    };
 }
 
 macro_rules! check_fractional {
-    (u8, $i:expr) => { $i.fract() == 0.0 };
-    (u16, $i:expr) => { $i.fract() == 0.0 };
-    (u32, $i:expr) => { $i.fract() == 0.0 };
-    (u64, $i:expr) => { $i.fract() == 0.0 };
-    (usize, $i:expr) => { $i.fract() == 0.0 };
-    (i8, $i:expr) => { $i.fract() == 0.0 };
-    (i16, $i:expr) => { $i.fract() == 0.0 };
-    (i32, $i:expr) => { $i.fract() == 0.0 };
-    (i64, $i:expr) => { $i.fract() == 0.0 };
-    (isize, $i:expr) => { $i.fract() == 0.0 };
-    (f16, $i:expr) => { true };
-    (f32, $i:expr) => { true };
-    (f64, $i:expr) => { true };
+    (u8, $i:expr) => {
+        $i.fract() == 0.0
+    };
+    (u16, $i:expr) => {
+        $i.fract() == 0.0
+    };
+    (u32, $i:expr) => {
+        $i.fract() == 0.0
+    };
+    (u64, $i:expr) => {
+        $i.fract() == 0.0
+    };
+    (usize, $i:expr) => {
+        $i.fract() == 0.0
+    };
+    (i8, $i:expr) => {
+        $i.fract() == 0.0
+    };
+    (i16, $i:expr) => {
+        $i.fract() == 0.0
+    };
+    (i32, $i:expr) => {
+        $i.fract() == 0.0
+    };
+    (i64, $i:expr) => {
+        $i.fract() == 0.0
+    };
+    (isize, $i:expr) => {
+        $i.fract() == 0.0
+    };
+    (f16, $i:expr) => {
+        true
+    };
+    (f32, $i:expr) => {
+        true
+    };
+    (f64, $i:expr) => {
+        true
+    };
 }
 
 macro_rules! cast {
-    (u64, $i:expr, $value:expr) => { Ok(*$i as u64) };
-    (i64, $i:expr, $value:expr) => { Ok(*$i as i64) };
-    (f64, $i:expr, $value:expr) => { Ok(*$i as f64) };
+    (u64, $i:expr, $value:expr) => {
+        Ok(*$i as u64)
+    };
+    (i64, $i:expr, $value:expr) => {
+        Ok(*$i as i64)
+    };
+    (f64, $i:expr, $value:expr) => {
+        Ok(*$i as f64)
+    };
     ($ty:ident, $i:ident, $value:ident, $mode:ident) => {{
         let i = *$i as primitive_type!($ty);
 
@@ -209,9 +286,7 @@ macro_rules! impl_primitive {
             type Output = $ty;
 
             #[allow(clippy::manual_range_contains)]
-            fn try_cast_lua(
-                value: &LuaValue,
-            ) -> mlua::Result<Option<Self::Output>> {
+            fn try_cast_lua(value: &LuaValue) -> mlua::Result<Option<Self::Output>> {
                 match value {
                     LuaValue::Integer(i) => cast!($ty, i, value, INTEGER),
                     LuaValue::Number(n) => cast!($ty, n, value, NUMBER),
@@ -247,9 +322,7 @@ where
 {
     type Output = mlua::UserDataRef<U>;
 
-    fn try_cast_lua(
-        value: &LuaValue,
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &LuaValue) -> mlua::Result<Option<Self::Output>> {
         match &value {
             LuaValue::UserData(ud) => {
                 if !ud.is::<U>() {
@@ -277,9 +350,7 @@ where
 {
     type Output = mlua::UserDataRefMut<U>;
 
-    fn try_cast_lua(
-        value: &LuaValue,
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &LuaValue) -> mlua::Result<Option<Self::Output>> {
         match &value {
             LuaValue::UserData(ud) => {
                 if !ud.is::<U>() {
@@ -307,14 +378,11 @@ where
 {
     type Output = Option<T::Output>;
 
-    fn try_cast_lua(
-        value: &'a LuaValue,
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &'a LuaValue) -> mlua::Result<Option<Self::Output>> {
         if value.is_nil() {
             Ok(Some(None))
         } else {
-            T::try_cast_lua(value)
-                .map(|v| v.map(Some))
+            T::try_cast_lua(value).map(|v| v.map(Some))
         }
     }
 
@@ -335,9 +403,7 @@ where
 {
     type Output = Either<T1::Output, T2::Output>;
 
-    fn try_cast_lua(
-        value: &'a LuaValue,
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &'a LuaValue) -> mlua::Result<Option<Self::Output>> {
         if let Some(value) = T1::try_cast_lua(value)? {
             Ok(Some(Either::A(value)))
         } else if let Some(value) = T2::try_cast_lua(value)? {
@@ -366,9 +432,7 @@ where
 {
     type Output = Either3<T1::Output, T2::Output, T3::Output>;
 
-    fn try_cast_lua(
-        value: &'a LuaValue,
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &'a LuaValue) -> mlua::Result<Option<Self::Output>> {
         if let Some(value) = T1::try_cast_lua(value)? {
             Ok(Some(Either3::A(value)))
         } else if let Some(value) = T2::try_cast_lua(value)? {
@@ -386,33 +450,21 @@ where
 }
 
 pub trait CastLuaExt {
-
-    fn cast<'a, T>(
-        &'a self,
-    ) -> mlua::Result<T::Output>
+    fn cast<'a, T>(&'a self) -> mlua::Result<T::Output>
     where
         T: CastLua<'a>;
 
-    fn cast_with_context<'a, T>(
-        &'a self,
-        context: impl AsRef<str>,
-    ) -> mlua::Result<T::Output>
+    fn cast_with_context<'a, T>(&'a self, context: impl AsRef<str>) -> mlua::Result<T::Output>
     where
         T: CastLua<'a>;
 
-    fn try_cast<'a, T>(
-        &'a self,
-    ) -> mlua::Result<Option<T::Output>>
+    fn try_cast<'a, T>(&'a self) -> mlua::Result<Option<T::Output>>
     where
         T: CastLua<'a>;
-
 }
 
 impl CastLuaExt for LuaValue {
-
-    fn cast<'a, T>(
-        &'a self,
-    ) -> mlua::Result<T::Output>
+    fn cast<'a, T>(&'a self) -> mlua::Result<T::Output>
     where
         T: CastLua<'a>,
     {
@@ -420,28 +472,18 @@ impl CastLuaExt for LuaValue {
             .ok_or_else(|| LuaError::type_mismatch(T::name().as_ref(), self))
     }
 
-    fn cast_with_context<'a, T>(
-        &'a self,
-        context: impl AsRef<str>,
-    ) -> mlua::Result<T::Output>
+    fn cast_with_context<'a, T>(&'a self, context: impl AsRef<str>) -> mlua::Result<T::Output>
     where
         T: CastLua<'a>,
     {
         self.try_cast::<T>()?
-            .ok_or_else(|| LuaError::type_mismatch_with_context(
-                context,
-                T::name().as_ref(),
-                self,
-            ))
+            .ok_or_else(|| LuaError::type_mismatch_with_context(context, T::name().as_ref(), self))
     }
 
-    fn try_cast<'a, T>(
-        &'a self,
-    ) -> mlua::Result<Option<T::Output>>
+    fn try_cast<'a, T>(&'a self) -> mlua::Result<Option<T::Output>>
     where
         T: CastLua<'a>,
     {
         T::try_cast_lua(self)
     }
-
 }

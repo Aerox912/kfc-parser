@@ -1,12 +1,16 @@
 use std::{fs::File, io::BufReader, rc::Rc};
 
-use kfc::{container::{KFCCursor, KFCFile, KFCReader, KFCReaderOptions, KFCWriteOptions, KFCWriter}, reflection::TypeRegistry};
+use kfc::{
+    container::{KFCCursor, KFCFile, KFCReader, KFCReaderOptions, KFCWriteOptions, KFCWriter},
+    reflection::TypeRegistry,
+};
 
-use crate::{alias::{Path, PathBuf}, log::{debug, error, info, warn}};
+use crate::{
+    alias::{Path, PathBuf},
+    log::{debug, error, info, warn},
+};
 
-pub fn load_kfc_file(
-    kfc_path: impl AsRef<Path>
-) -> Result<Rc<KFCFile>, ()> {
+pub fn load_kfc_file(kfc_path: impl AsRef<Path>) -> Result<Rc<KFCFile>, ()> {
     let kfc_path = kfc_path.as_ref();
 
     match KFCFile::from_path(kfc_path, false) {
@@ -22,18 +26,17 @@ pub fn load_kfc_file(
     }
 }
 
-pub fn create_reader(
-    dir: &Path,
-    file_name: &str,
-) -> Result<KFCCursor<KFCReader>, ()> {
+pub fn create_reader(dir: &Path, file_name: &str) -> Result<KFCCursor<KFCReader>, ()> {
     match KFCReader::new_with_options(
         dir,
         file_name,
         KFCReaderOptions {
             kfc_extension: "kfc.bak",
             ..Default::default()
-        }
-    ).and_then(|reader| reader.into_cursor()) {
+        },
+    )
+    .and_then(|reader| reader.into_cursor())
+    {
         Ok(reader) => Ok(reader),
         Err(e) => {
             error!(
@@ -61,7 +64,7 @@ pub fn create_writer(
         KFCWriteOptions {
             overwrite_containers: true,
             ..Default::default()
-        }
+        },
     ) {
         Ok(writer) => writer,
         Err(e) => {
@@ -78,9 +81,7 @@ pub fn create_writer(
     Ok(writer)
 }
 
-pub fn create_backup(
-    kfc_path: impl AsRef<Path>
-) -> Result<PathBuf, ()> {
+pub fn create_backup(kfc_path: impl AsRef<Path>) -> Result<PathBuf, ()> {
     let path = kfc_path.as_ref();
     let mut bak_path = path.to_string();
     bak_path.push_str(".bak");
@@ -131,9 +132,7 @@ pub fn create_backup(
     Ok(bak_path.to_path_buf())
 }
 
-pub fn restore_backup(
-    kfc_path: impl AsRef<Path>,
-) -> Result<(), ()> {
+pub fn restore_backup(kfc_path: impl AsRef<Path>) -> Result<(), ()> {
     let path = kfc_path.as_ref();
     let mut bak_path = path.to_string();
     bak_path.push_str(".bak");
@@ -183,10 +182,7 @@ pub fn restore_backup(
     Ok(())
 }
 
-pub fn validate_backup(
-    kfc_path: &Path,
-    kfc_path_bak: &Path
-) -> bool {
+pub fn validate_backup(kfc_path: &Path, kfc_path_bak: &Path) -> bool {
     let version_bak = match KFCFile::get_version_tag(kfc_path_bak) {
         Ok(file) => file,
         Err(_) => return false,
@@ -232,7 +228,7 @@ pub fn load_type_registry(
                     );
 
                     None
-                },
+                }
             }
         }
         Err(e) => {
@@ -243,7 +239,7 @@ pub fn load_type_registry(
             );
 
             None
-        },
+        }
     };
 
     let version_tag = match KFCFile::get_version_tag(&kfc_path) {
@@ -277,8 +273,8 @@ pub fn load_type_registry(
             } else {
                 None
             }
-        },
-        None => None
+        }
+        None => None,
     };
 
     let (type_registry, is_dirty) = match type_registry {
@@ -326,7 +322,7 @@ pub fn load_type_registry(
 
                 return Err(());
             }
-        }
+        },
     };
 
     info!(
@@ -341,11 +337,7 @@ pub fn load_type_registry(
     Ok((type_registry, is_dirty))
 }
 
-pub fn export_lua_definitions(
-    cache_dir: &Path,
-    type_registry: &TypeRegistry,
-    force: bool,
-) {
+pub fn export_lua_definitions(cache_dir: &Path, type_registry: &TypeRegistry, force: bool) {
     let lua_cache_dir = cache_dir.join("lua");
 
     if let Err(e) = std::fs::create_dir_all(&lua_cache_dir) {

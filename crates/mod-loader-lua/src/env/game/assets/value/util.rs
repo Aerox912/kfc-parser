@@ -6,7 +6,6 @@ pub struct TreePath {
 }
 
 impl TreePath {
-
     #[inline]
     pub fn new() -> Self {
         Self {
@@ -42,7 +41,6 @@ impl TreePath {
             self.len -= 1;
         }
     }
-
 }
 
 impl Display for TreePath {

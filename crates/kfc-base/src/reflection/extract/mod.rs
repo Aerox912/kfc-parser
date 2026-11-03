@@ -2,9 +2,9 @@ mod pe_file;
 mod util;
 
 mod error;
-mod types;
 mod parser;
+mod types;
 
-pub use parser::*;
 pub use error::*;
+pub use parser::*;
 pub use types::*;

@@ -3,10 +3,7 @@ use std::io::{BufReader, BufWriter};
 use crate::{alias::Path, cache::FileStateCache, log::warn};
 
 impl FileStateCache {
-
-    pub fn read(
-        cache_dir: impl AsRef<Path>
-    ) -> Self {
+    pub fn read(cache_dir: impl AsRef<Path>) -> Self {
         let cache_file = cache_dir.as_ref().join("files.json");
 
         if cache_file.exists() {
@@ -41,10 +38,7 @@ impl FileStateCache {
         }
     }
 
-    pub fn write(
-        &self,
-        cache_dir: impl AsRef<Path>
-    ) {
+    pub fn write(&self, cache_dir: impl AsRef<Path>) {
         let cache_dir = cache_dir.as_ref();
 
         if let Err(e) = std::fs::create_dir_all(cache_dir) {
@@ -78,6 +72,4 @@ impl FileStateCache {
             }
         }
     }
-
 }
-

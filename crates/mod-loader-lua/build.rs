@@ -1,5 +1,5 @@
-use std::fs;
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -8,7 +8,10 @@ fn main() -> std::io::Result<()> {
     generate_definitions_file()?;
 
     // does not change unless definitions change, so this may need to be changed in the future
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
     println!("cargo:rustc-env=BUILD_ID={now}");
 
     Ok(())
@@ -62,10 +65,7 @@ fn generate_definitions_file() -> std::io::Result<()> {
     Ok(())
 }
 
-fn collect_lua_files(
-    dir: &Path,
-    out: &mut Vec<PathBuf>
-) -> std::io::Result<()> {
+fn collect_lua_files(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
     for entry in fs::read_dir(dir)? {
         let p = entry?.path();
 

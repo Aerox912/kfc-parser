@@ -5,7 +5,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::guid::Guid;
 use crate::hash::fnv_bytes_with_seed;
-use crate::{container::StaticHash, io::{ReadExt, WriteExt}, Hash32};
+use crate::{
+    Hash32,
+    container::StaticHash,
+    io::{ReadExt, WriteExt},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub struct ResourceId {
@@ -17,7 +21,6 @@ pub struct ResourceId {
 }
 
 impl ResourceId {
-
     pub const NONE: Self = Self {
         guid: Guid::NONE,
         type_hash: 0,
@@ -28,11 +31,7 @@ impl ResourceId {
 
     #[inline]
     #[must_use]
-    pub const fn new(
-        guid: Guid,
-        type_hash: Hash32,
-        part_index: u32
-    ) -> Self {
+    pub const fn new(guid: Guid, type_hash: Hash32, part_index: u32) -> Self {
         Self {
             guid,
             type_hash,
@@ -49,21 +48,13 @@ impl ResourceId {
     /// If the string is not in the correct format, `None` is returned.
     #[inline]
     #[must_use]
-    pub const fn parse(
-        s: &str,
-        type_hash: Hash32,
-        part_index: u32
-    ) -> Option<Self> {
+    pub const fn parse(s: &str, type_hash: Hash32, part_index: u32) -> Option<Self> {
         let guid = match Guid::parse(s) {
             Some(data) => data,
             None => return None,
         };
 
-        Some(Self::new(
-            guid,
-            type_hash,
-            part_index,
-        ))
+        Some(Self::new(guid, type_hash, part_index))
     }
 
     #[inline]
@@ -98,31 +89,19 @@ impl ResourceId {
     #[inline]
     #[must_use]
     pub const fn with_guid(&self, guid: Guid) -> Self {
-        Self::new(
-            guid,
-            self.type_hash,
-            self.part_index,
-        )
+        Self::new(guid, self.type_hash, self.part_index)
     }
 
     #[inline]
     #[must_use]
     pub const fn with_type_hash(&self, type_hash: Hash32) -> Self {
-        Self::new(
-            self.guid,
-            type_hash,
-            self.part_index,
-        )
+        Self::new(self.guid, type_hash, self.part_index)
     }
 
     #[inline]
     #[must_use]
     pub const fn with_part_index(&self, part_index: u32) -> Self {
-        Self::new(
-            self.guid,
-            self.type_hash,
-            part_index,
-        )
+        Self::new(self.guid, self.type_hash, part_index)
     }
 
     /// Create a new `ResourceId` from a string with following format:
@@ -144,13 +123,16 @@ impl ResourceId {
     #[must_use]
     #[deprecated(note = "the format is not very user-friendly, use your own format instead")]
     pub fn to_qualified_string(&self) -> String {
-        format!("{}_{:0>8x}_{}", self.guid(), self.type_hash, self.part_index)
+        format!(
+            "{}_{:0>8x}_{}",
+            self.guid(),
+            self.type_hash,
+            self.part_index
+        )
     }
-
 }
 
 impl StaticHash for ResourceId {
-
     #[inline]
     fn static_hash(&self) -> u32 {
         let seed = u32::from_le_bytes(self.guid.data()[0..4].try_into().unwrap());
@@ -161,7 +143,6 @@ impl StaticHash for ResourceId {
 
         fnv_bytes_with_seed(&rest, seed)
     }
-
 }
 
 impl Display for ResourceId {
@@ -171,7 +152,6 @@ impl Display for ResourceId {
 }
 
 impl ResourceId {
-
     #[inline]
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let guid = Guid::read(reader)?;
@@ -180,11 +160,7 @@ impl ResourceId {
         reader.padding(4)?; // reserved_0
         reader.padding(4)?; // reserved_1
 
-        Ok(Self::new(
-            guid,
-            type_hash,
-            part_index,
-        ))
+        Ok(Self::new(guid, type_hash, part_index))
     }
 
     #[inline]
@@ -197,7 +173,6 @@ impl ResourceId {
 
         Ok(())
     }
-
 }
 
 impl<'de> Deserialize<'de> for ResourceId {
@@ -208,8 +183,7 @@ impl<'de> Deserialize<'de> for ResourceId {
         let s = String::deserialize(deserializer)?;
 
         #[allow(deprecated)]
-        Self::parse_qualified(&s)
-            .ok_or_else(|| serde::de::Error::custom("invalid ResourceId"))
+        Self::parse_qualified(&s).ok_or_else(|| serde::de::Error::custom("invalid ResourceId"))
     }
 }
 
@@ -249,11 +223,7 @@ const fn str_to_qualified_guid(input: &str) -> Option<ResourceId> {
         None => return None,
     };
 
-    Some(ResourceId::new(
-        guid,
-        type_hash,
-        part_index,
-    ))
+    Some(ResourceId::new(guid, type_hash, part_index))
 }
 
 const fn dec_to_u32_end(input: &[u8], start: usize) -> Option<u32> {
@@ -295,5 +265,4 @@ mod test {
 
         assert_eq!(guid.to_string(), GUID);
     }
-
 }

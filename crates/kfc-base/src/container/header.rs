@@ -1,6 +1,9 @@
 use std::io::{Read, Seek, Write};
 
-use crate::{io::{ReadExt, ReadSeekExt, WriteExt, WriteSeekExt}, Hash32};
+use crate::{
+    Hash32,
+    io::{ReadExt, ReadSeekExt, WriteExt, WriteSeekExt},
+};
 
 use super::{KFCReadError, KFCWriteError};
 
@@ -42,7 +45,6 @@ const KFC_DIR_MAGIC: u32 = 0x3443464B; // KFC4
 pub struct KFCHeader {
     pub size: u64,
     // pub unk0: u32,
-
     pub version: KFCLocation,
     pub containers: KFCLocation,
 
@@ -68,7 +70,6 @@ pub struct KFCHeader {
 }
 
 impl KFCHeader {
-
     pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, KFCReadError> {
         let magic = reader.read_u32()?;
 
@@ -167,7 +168,6 @@ impl KFCHeader {
 
         Ok(())
     }
-
 }
 
 /// # Layout
@@ -184,13 +184,9 @@ pub struct KFCLocation {
 }
 
 impl KFCLocation {
-
     #[inline]
     pub fn new(offset: u64, count: usize) -> Self {
-        Self {
-            offset,
-            count,
-        }
+        Self { offset, count }
     }
 
     #[inline]
@@ -198,10 +194,7 @@ impl KFCLocation {
         let offset = reader.read_u32_offset()?;
         let count = reader.read_u32()? as usize;
 
-        Ok(Self {
-            offset,
-            count,
-        })
+        Ok(Self { offset, count })
     }
 
     #[inline]
@@ -211,7 +204,6 @@ impl KFCLocation {
 
         Ok(())
     }
-
 }
 
 /// # Layout
@@ -228,16 +220,12 @@ pub struct ContainerInfo {
 }
 
 impl ContainerInfo {
-
     #[inline]
     pub fn read<R: Read>(reader: &mut R) -> Result<Self, KFCReadError> {
         let size = reader.read_u64()?;
         let count = reader.read_u64()? as usize;
 
-        Ok(Self {
-            size,
-            count,
-        })
+        Ok(Self { size, count })
     }
 
     #[inline]
@@ -247,7 +235,6 @@ impl ContainerInfo {
 
         Ok(())
     }
-
 }
 
 /// # Layout
@@ -266,7 +253,6 @@ pub struct ResourceLocation {
 }
 
 impl ResourceLocation {
-
     #[inline]
     pub fn read<R: Read>(reader: &mut R) -> Result<Self, KFCReadError> {
         let uncompressed_size = reader.read_u32()? as u64;
@@ -288,7 +274,6 @@ impl ResourceLocation {
 
         Ok(())
     }
-
 }
 
 /// # Layout
@@ -308,7 +293,6 @@ pub struct ContentEntry {
 }
 
 impl ContentEntry {
-
     #[inline]
     pub fn new(offset: u64, flags: u16, container_index: usize) -> Self {
         Self {
@@ -341,7 +325,6 @@ impl ContentEntry {
 
         Ok(())
     }
-
 }
 
 /// # Layout
@@ -358,13 +341,9 @@ pub struct ResourceEntry {
 }
 
 impl ResourceEntry {
-
     #[inline]
     pub fn new(offset: u64, size: u64) -> Self {
-        Self {
-            offset,
-            size,
-        }
+        Self { offset, size }
     }
 
     #[inline]
@@ -372,10 +351,7 @@ impl ResourceEntry {
         let offset = reader.read_u32()? as u64;
         let size = reader.read_u32()? as u64;
 
-        Ok(Self {
-            offset,
-            size,
-        })
+        Ok(Self { offset, size })
     }
 
     #[inline]
@@ -385,7 +361,6 @@ impl ResourceEntry {
 
         Ok(())
     }
-
 }
 
 /// # Layout
@@ -404,7 +379,6 @@ pub struct ResourceBundleEntry {
 }
 
 impl ResourceBundleEntry {
-
     #[inline]
     pub fn read<R: Read>(reader: &mut R) -> Result<Self, KFCReadError> {
         let internal_hash = reader.read_u32()?;
@@ -426,7 +400,6 @@ impl ResourceBundleEntry {
 
         Ok(())
     }
-
 }
 
 /// # Layout
@@ -449,7 +422,6 @@ pub struct ResourceChunkInfo {
 }
 
 impl ResourceChunkInfo {
-
     #[inline]
     pub fn read<R: Read>(reader: &mut R) -> Result<Self, KFCReadError> {
         let offset = reader.read_u32()? as u64;
@@ -477,5 +449,4 @@ impl ResourceChunkInfo {
 
         Ok(())
     }
-
 }

@@ -2,29 +2,25 @@ use std::borrow::Borrow;
 
 use kfc::reflection::TypeRegistry;
 
-use super::{TypeHandle, MappingError};
+use super::{MappingError, TypeHandle};
 
 #[inline]
-pub fn get_inner_type<T>(
-    r#type: &TypeHandle<T>
-) -> TypeHandle<T>
+pub fn get_inner_type<T>(r#type: &TypeHandle<T>) -> TypeHandle<T>
 where
     T: Borrow<TypeRegistry> + Clone,
 {
-    r#type.inner_type()
+    r#type
+        .inner_type()
         .map(|t| t.unwrap_typedef())
         .expect("invalid type handle: inner type is None")
 }
 
 #[inline]
-pub fn get_inner_type_opt<T>(
-    r#type: &TypeHandle<T>
-) -> Option<TypeHandle<T>>
+pub fn get_inner_type_opt<T>(r#type: &TypeHandle<T>) -> Option<TypeHandle<T>>
 where
     T: Borrow<TypeRegistry> + Clone,
 {
-    r#type.inner_type()
-        .map(|t| t.unwrap_typedef())
+    r#type.inner_type().map(|t| t.unwrap_typedef())
 }
 
 #[inline]

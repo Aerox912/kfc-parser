@@ -153,7 +153,6 @@ pub enum PixelFormat {
 }
 
 impl PixelFormat {
-
     pub fn block_size(self) -> usize {
         match self {
             Self::None => 0,
@@ -328,5 +327,4 @@ impl PixelFormat {
             _ => (1, 1),
         }
     }
-
 }

@@ -1,17 +1,20 @@
 use std::path::PathBuf;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use mod_loader::{lua::{self, RunArgs, RunOptions}, runtime, Config, ModEnvironment};
+use mod_loader::{
+    Config, ModEnvironment,
+    lua::{self, RunArgs, RunOptions},
+    runtime,
+};
 
 use crate::{log::error, logging};
 
 pub fn init(config: Config) {
     logging::setup();
 
-    let current_dir = std::env::current_dir()
-        .expect("Failed to get current directory");
-    let current_dir = Utf8PathBuf::from_path_buf(current_dir)
-        .expect("Current directory path is not valid UTF-8");
+    let current_dir = std::env::current_dir().expect("Failed to get current directory");
+    let current_dir =
+        Utf8PathBuf::from_path_buf(current_dir).expect("Current directory path is not valid UTF-8");
 
     let env = match ModEnvironment::load(&current_dir) {
         Ok(env) => env,
@@ -30,16 +33,10 @@ pub fn init(config: Config) {
                 if let Some(id) = &mod_error.id {
                     report += &format!(
                         "\n  In mod '{}' at {}: {}",
-                        id,
-                        mod_error.path,
-                        mod_error.error
+                        id, mod_error.path, mod_error.error
                     );
                 } else {
-                    report += &format!(
-                        "\n  In mod at {}: {}",
-                        mod_error.path,
-                        mod_error.error
-                    );
+                    report += &format!("\n  In mod at {}: {}", mod_error.path, mod_error.error);
                 }
             }
 
@@ -76,25 +73,20 @@ pub fn init(config: Config) {
         }
     };
 
-    runtime::loader_attach(
-        &env,
-        runtime::RuntimeOptions {
-            dlls: result.dlls,
-        },
-    ).expect("Failed to attach runtime loader");
+    runtime::loader_attach(&env, runtime::RuntimeOptions { dlls: result.dlls })
+        .expect("Failed to attach runtime loader");
 }
 
 pub fn deinit() {
-    runtime::loader_detach()
-        .expect("Failed to detach runtime loader");
+    runtime::loader_detach().expect("Failed to detach runtime loader");
 }
 
-fn get_file_name(
-    game_dir: &Utf8Path,
-) -> String {
+fn get_file_name(game_dir: &Utf8Path) -> String {
     if game_dir.join("enshrouded.kfc").exists() || game_dir.join("enshrouded.exe").exists() {
         "enshrouded".into()
-    } else if game_dir.join("enshrouded_server.kfc").exists() || game_dir.join("enshrouded_server.exe").exists() {
+    } else if game_dir.join("enshrouded_server.kfc").exists()
+        || game_dir.join("enshrouded_server.exe").exists()
+    {
         "enshrouded_server".into()
     } else {
         // try to find file with .kfc or .exe extension
@@ -102,8 +94,7 @@ fn get_file_name(
             if let Some(ext) = file.path().extension() {
                 if ext == "kfc" || ext == "exe" {
                     let file = file.path();
-                    let file_name = file.file_stem()
-                        .and_then(|s| s.to_str());
+                    let file_name = file.file_stem().and_then(|s| s.to_str());
 
                     if let Some(file_name) = file_name {
                         return file_name.into();

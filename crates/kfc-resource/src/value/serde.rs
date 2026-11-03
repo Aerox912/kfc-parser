@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
 use serde::{
-    de::{MapAccess, SeqAccess, Visitor},
     Deserialize, Serialize,
+    de::{MapAccess, SeqAccess, Visitor},
 };
 
 use crate::value::Value;

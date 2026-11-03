@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use kfc::guid::ContentHash;
+use serde::{Deserialize, Serialize};
 
 use crate::hash_types::HashKey32;
 
@@ -13,7 +13,6 @@ pub enum EventStream {
     OnParry,
     OnFootDown,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +28,7 @@ pub struct ImpactVariable {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImpactProgram {
-    pub id: ProgramId, // fnv hash of the program_guid
+    pub id: ProgramId,        // fnv hash of the program_guid
     pub program_guid: String, // BlobGuid part of the object guid
     pub stack_size: u16,
     pub used_streams: Vec<EventStream>,

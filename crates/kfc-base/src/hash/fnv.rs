@@ -56,5 +56,4 @@ mod tests {
         assert_eq!(fnv_with_seed("hello", 0x12345678), 0x66ce6340);
         assert_eq!(fnv_with_seed("world", 0x12345678), 0x570c34cc);
     }
-
 }

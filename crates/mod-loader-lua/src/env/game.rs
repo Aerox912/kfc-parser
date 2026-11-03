@@ -4,12 +4,10 @@ mod assets;
 mod guid;
 mod types;
 
-pub use types::Type;
 pub use assets::{Content, Resource, value};
+pub use types::Type;
 
-pub fn create(
-    lua: &mlua::Lua
-) -> mlua::Result<mlua::Table> {
+pub fn create(lua: &mlua::Lua) -> mlua::Result<mlua::Table> {
     let table = lua.create_table()?;
     let app_state = lua.app_data_ref::<AppState>().unwrap();
 

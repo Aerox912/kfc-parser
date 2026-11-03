@@ -9,13 +9,13 @@ pub fn deserialize_audio<R: Read, W: Write + Seek>(
     writer: W,
     channels: u16,
     sample_rate: u32,
-    frame_count: u32
+    frame_count: u32,
 ) -> anyhow::Result<()> {
     let spec = WavSpec {
         channels,
         sample_rate,
         bits_per_sample: 16,
-        sample_format: SampleFormat::Int
+        sample_format: SampleFormat::Int,
     };
 
     let writer = std::io::BufWriter::new(writer);

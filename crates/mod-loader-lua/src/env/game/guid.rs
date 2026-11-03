@@ -1,11 +1,12 @@
 use kfc::guid::ContentHash;
 use mlua::ObjectLike;
 
-use crate::{env::util::add_function, lua::{CastLuaExt, FunctionArgs, LuaError, LuaValue}};
+use crate::{
+    env::util::add_function,
+    lua::{CastLuaExt, FunctionArgs, LuaError, LuaValue},
+};
 
-pub fn create(
-    lua: &mlua::Lua
-) -> mlua::Result<mlua::Table> {
+pub fn create(lua: &mlua::Lua) -> mlua::Result<mlua::Table> {
     let table = lua.create_table()?;
 
     table.raw_set("NONE", ContentHash::NONE.to_string())?;
@@ -17,10 +18,7 @@ pub fn create(
     Ok(table)
 }
 
-fn lua_from_content_hash(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<LuaValue> {
+fn lua_from_content_hash(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<LuaValue> {
     let value = args.get::<LuaValue>(0)?;
 
     match value {
@@ -34,7 +32,7 @@ fn lua_from_content_hash(
             let guid_str = guid.to_string();
 
             Ok(LuaValue::String(lua.create_string(&guid_str)?))
-        },
+        }
         LuaValue::Table(table) => {
             let size = table.get::<LuaValue>("size")?.cast::<u32>()?;
             let hash0 = table.get::<LuaValue>("hash0")?.cast::<u32>()?;
@@ -45,22 +43,14 @@ fn lua_from_content_hash(
             let guid_str = guid.to_string();
 
             Ok(LuaValue::String(lua.create_string(&guid_str)?))
-        },
-        _ => Err(LuaError::bad_argument_type(
-            0,
-            "userdata or table",
-            value
-        )),
+        }
+        _ => Err(LuaError::bad_argument_type(0, "userdata or table", value)),
     }
 }
 
-fn lua_to_content_hash(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<LuaValue> {
+fn lua_to_content_hash(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<LuaValue> {
     let guid = args.get::<String>(0)?;
-    let guid = ContentHash::parse(&guid)
-        .ok_or_else(|| LuaError::generic("invalid GUID format"))?;
+    let guid = ContentHash::parse(&guid).ok_or_else(|| LuaError::generic("invalid GUID format"))?;
     let table = lua.create_table()?;
 
     table.raw_set("size", guid.size())?;
@@ -71,13 +61,9 @@ fn lua_to_content_hash(
     Ok(LuaValue::Table(table))
 }
 
-fn lua_hash(
-    _lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<u32> {
+fn lua_hash(_lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<u32> {
     let guid = args.get::<String>(0)?;
-    let guid = ContentHash::parse(&guid)
-        .ok_or_else(|| LuaError::generic("invalid GUID format"))?;
+    let guid = ContentHash::parse(&guid).ok_or_else(|| LuaError::generic("invalid GUID format"))?;
 
     Ok(guid.hash32())
 }

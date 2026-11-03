@@ -1,30 +1,26 @@
 use mlua::Table;
 use mod_loader::Mod;
 
+mod buffer;
 mod game;
+mod hasher;
+mod image;
 mod integer;
+mod io;
+mod loader;
 mod log;
 mod table;
-mod hasher;
-mod io;
-mod buffer;
-mod loader;
-mod image;
 
-mod util;
 mod app_state;
+mod util;
 
 pub use app_state::*;
 
+use buffer::Buffer;
 #[allow(unused_imports)]
 use game::{Content, Resource, Type, value};
-use buffer::Buffer;
 
-pub fn register(
-    lua: &mlua::Lua,
-    env: &Table,
-    r#mod: &Mod,
-) -> mlua::Result<()> {
+pub fn register(lua: &mlua::Lua, env: &Table, r#mod: &Mod) -> mlua::Result<()> {
     let lua_builtin = lua.create_table()?;
 
     let lua_io = io::create(lua, r#mod.clone())?;

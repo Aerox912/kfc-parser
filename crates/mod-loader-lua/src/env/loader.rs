@@ -2,12 +2,15 @@ use camino::Utf8PathBuf;
 use mod_loader::Mod;
 use uuid::Uuid;
 
-use crate::{env::{AppFeatures, AppState, util::{add_function, add_function_with_mod}}, lua::{FunctionArgs, LuaError}};
+use crate::{
+    env::{
+        AppFeatures, AppState,
+        util::{add_function, add_function_with_mod},
+    },
+    lua::{FunctionArgs, LuaError},
+};
 
-pub fn create(
-    lua: &mlua::Lua,
-    r#mod: Mod,
-) -> mlua::Result<mlua::Table> {
+pub fn create(lua: &mlua::Lua, r#mod: Mod) -> mlua::Result<mlua::Table> {
     let app_state = lua.app_data_ref::<AppState>().unwrap();
     let table = lua.create_table()?;
 
@@ -33,28 +36,27 @@ pub fn create(
     // LoaderRuntime
     let runtime_table = lua.create_table()?;
 
-    add_function_with_mod(lua, &runtime_table, "register_dll", &r#mod, lua_register_dll)?;
+    add_function_with_mod(
+        lua,
+        &runtime_table,
+        "register_dll",
+        &r#mod,
+        lua_register_dll,
+    )?;
 
     table.raw_set("runtime", runtime_table)?;
 
     Ok(table)
 }
 
-fn lua_has_mod(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-) -> mlua::Result<bool> {
+fn lua_has_mod(lua: &mlua::Lua, args: FunctionArgs) -> mlua::Result<bool> {
     let app_state = lua.app_data_ref::<AppState>().unwrap();
     let id = args.get::<String>(0)?;
 
     Ok(app_state.env().mod_registry().contains_key(&id))
 }
 
-fn lua_register_dll(
-    lua: &mlua::Lua,
-    args: FunctionArgs,
-    r#mod: &Mod,
-) -> mlua::Result<()> {
+fn lua_register_dll(lua: &mlua::Lua, args: FunctionArgs, r#mod: &Mod) -> mlua::Result<()> {
     let app_state = lua.app_data_ref::<AppState>().unwrap();
 
     if !app_state.has_feature(AppFeatures::RUNTIME_DLL) {
@@ -71,10 +73,11 @@ fn lua_register_dll(
         let path = loop {
             let uuid = Uuid::new_v4().to_string();
             let file_name = path.file_name().unwrap_or(uuid.as_str());
-            let tmp_path = std::env::temp_dir()
-                .join(format!("{}_{}.dll", r#mod.info().id, file_name));
-            let utf8_path = Utf8PathBuf::try_from(tmp_path.clone())
-                .map_err(|e| LuaError::generic(format!("failed to convert temp path to UTF-8: {e}")))?;
+            let tmp_path =
+                std::env::temp_dir().join(format!("{}_{}.dll", r#mod.info().id, file_name));
+            let utf8_path = Utf8PathBuf::try_from(tmp_path.clone()).map_err(|e| {
+                LuaError::generic(format!("failed to convert temp path to UTF-8: {e}"))
+            })?;
 
             if !utf8_path.exists() {
                 break utf8_path;

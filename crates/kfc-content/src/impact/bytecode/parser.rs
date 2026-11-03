@@ -18,7 +18,7 @@ impl<'a, 'b, 'c> Parser<'a, 'b, 'c> {
     pub fn new(
         nodes: &'b HashMap<u32, ImpactNode>,
         impact_data: &'c ImpactProgramData,
-        content: &'a str
+        content: &'a str,
     ) -> Self {
         let mut tokenizer = Tokenizer::new(content);
         let next = tokenizer.advance();
@@ -69,9 +69,7 @@ impl<'a, 'b, 'c> Parser<'a, 'b, 'c> {
 
         for instruction in instructions.iter_mut() {
             match instruction {
-                ImpactOps::BR(id) |
-                ImpactOps::BRT(id) |
-                ImpactOps::BRF(id) => {
+                ImpactOps::BR(id) | ImpactOps::BRT(id) | ImpactOps::BRF(id) => {
                     let name = label_mappings.get(&(*id as usize)).expect("unreachable");
 
                     if let Some(address) = labels.get(name.content) {
@@ -84,8 +82,8 @@ impl<'a, 'b, 'c> Parser<'a, 'b, 'c> {
                             },
                         });
                     }
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
 
@@ -125,19 +123,19 @@ impl<'a, 'b, 'c> Parser<'a, 'b, 'c> {
                 let id = label_mappings.len();
                 label_mappings.insert(id, label);
                 ImpactOps::BR(id as u32)
-            },
+            }
             KeywordKind::Brt => {
                 let label = self.expect(TokenKind::Identifier)?;
                 let id = label_mappings.len();
                 label_mappings.insert(id, label);
                 ImpactOps::BRT(id as u32)
-            },
+            }
             KeywordKind::Brf => {
                 let label = self.expect(TokenKind::Identifier)?;
                 let id = label_mappings.len();
                 label_mappings.insert(id, label);
                 ImpactOps::BRF(id as u32)
-            },
+            }
 
             KeywordKind::IConst => ImpactOps::IConst(self.parse_data()?),
             KeywordKind::Load => ImpactOps::Load(self.parse_data()?),
@@ -198,7 +196,10 @@ impl<'a, 'b, 'c> Parser<'a, 'b, 'c> {
 
     fn parse_data(&self) -> Result<u32, ParseError> {
         let token = self.expect(TokenKind::Identifier)?;
-        let data = self.impact_data.data.iter()
+        let data = self
+            .impact_data
+            .data
+            .iter()
             .enumerate()
             .find(|(_, data)| data.name == token.content)
             .map(|(index, _)| index as u32 | 0xFFFF_0000)
@@ -281,9 +282,7 @@ impl<'a, 'b, 'c> Parser<'a, 'b, 'c> {
     fn is_whitespace(&self, token: &Token) -> bool {
         matches!(
             token.kind,
-            TokenKind::Comment |
-            TokenKind::Whitespace |
-            TokenKind::Newline
+            TokenKind::Comment | TokenKind::Whitespace | TokenKind::Newline
         )
     }
 
@@ -301,5 +300,4 @@ impl<'a, 'b, 'c> Parser<'a, 'b, 'c> {
         let token = self.tokenizer.borrow_mut().advance();
         self.next.replace(token)
     }
-
 }

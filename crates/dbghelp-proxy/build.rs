@@ -3,9 +3,7 @@ use std::path::Path;
 fn main() {
     let target = std::env::var("TARGET").unwrap();
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let def_path = Path::new(&manifest_dir)
-        .join("def")
-        .join("dbghelp.def");
+    let def_path = Path::new(&manifest_dir).join("def").join("dbghelp.def");
     let def_path = def_path
         .to_str()
         .expect("Failed to convert def path to string");

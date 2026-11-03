@@ -11,17 +11,14 @@ pub struct ReadOnlyMap {
 }
 
 impl ReadOnlyMap {
-
     pub fn new(table: IndexMap<String, LuaValue>) -> Self {
         Self {
             table: Rc::new(table),
         }
     }
-
 }
 
 impl UserData for ReadOnlyMap {
-
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_meta_function(MetaMethod::Index, |lua, args: MethodArgs| {
             let this = args.this::<&Self>()?;
@@ -41,7 +38,6 @@ impl UserData for ReadOnlyMap {
             ReadOnlyMapIter::create(&this, lua)
         });
     }
-
 }
 
 #[self_referencing]
@@ -53,15 +49,11 @@ struct ReadOnlyMapIter {
 }
 
 impl ReadOnlyMapIter {
-
     fn create(
         value: &ReadOnlyMap,
         lua: &mlua::Lua,
     ) -> mlua::Result<(Function, AnyUserData, LuaValue)> {
-        let state = Self::new(
-            value.table.clone(),
-            |data| data.iter()
-        );
+        let state = Self::new(value.table.clone(), |data| data.iter());
         let ud = lua.create_userdata(state)?;
         let iter_fn = lua.create_function(|lua, args: FunctionArgs| {
             let mut state = args.get::<&mut Self>(0)?;
@@ -72,22 +64,19 @@ impl ReadOnlyMapIter {
         Ok((iter_fn, ud, LuaValue::Nil))
     }
 
-    fn next(
-        &mut self,
-        lua: &mlua::Lua,
-    ) -> mlua::Result<(LuaValue, LuaValue)> {
-        let entry = self.with_iter_mut(|keys| {
-            keys.next()
-        });
+    fn next(&mut self, lua: &mlua::Lua) -> mlua::Result<(LuaValue, LuaValue)> {
+        let entry = self.with_iter_mut(|keys| keys.next());
 
         let (key, value) = match entry {
             Some(k) => k,
             None => return Ok((LuaValue::Nil, LuaValue::Nil)),
         };
 
-        Ok((LuaValue::String(lua.create_string(key.as_bytes())?), value.clone()))
+        Ok((
+            LuaValue::String(lua.create_string(key.as_bytes())?),
+            value.clone(),
+        ))
     }
-
 }
 
 impl UserData for ReadOnlyMapIter {}
@@ -97,17 +86,14 @@ pub struct ReadOnlyArray {
 }
 
 impl ReadOnlyArray {
-
     pub fn new(array: Vec<LuaValue>) -> Self {
         Self {
             array: Rc::new(array),
         }
     }
-
 }
 
 impl UserData for ReadOnlyArray {
-
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_meta_function(MetaMethod::Index, |_, args: MethodArgs| {
             let this = args.this::<&Self>()?;
@@ -130,7 +116,6 @@ impl UserData for ReadOnlyArray {
             ReadOnlyArrayIter::create(&this, lua)
         });
     }
-
 }
 
 struct ReadOnlyArrayIter {
@@ -139,7 +124,6 @@ struct ReadOnlyArrayIter {
 }
 
 impl ReadOnlyArrayIter {
-
     fn create(
         value: &ReadOnlyArray,
         lua: &mlua::Lua,
@@ -158,9 +142,7 @@ impl ReadOnlyArrayIter {
         Ok((iter_fn, ud, LuaValue::Nil))
     }
 
-    fn next(
-        &mut self,
-    ) -> mlua::Result<(LuaValue, LuaValue)> {
+    fn next(&mut self) -> mlua::Result<(LuaValue, LuaValue)> {
         if self.index >= self.array.len() {
             return Ok((LuaValue::Nil, LuaValue::Nil));
         }
@@ -172,7 +154,6 @@ impl ReadOnlyArrayIter {
 
         Ok((LuaValue::Integer(key as i64 + 1), value))
     }
-
 }
 
 impl UserData for ReadOnlyArrayIter {}

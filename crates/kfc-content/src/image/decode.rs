@@ -1,7 +1,9 @@
-use block_compression::{decode::decompress_blocks_as_rgba8, BC6HSettings, BC7Settings, CompressionVariant};
+use block_compression::{
+    BC6HSettings, BC7Settings, CompressionVariant, decode::decompress_blocks_as_rgba8,
+};
 use half::f16;
 
-use crate::image::{size_of_format, PixelFormat};
+use crate::image::{PixelFormat, size_of_format};
 
 // #[inline(always)]
 // const fn map2to8(value: u8) -> u8 {
@@ -30,12 +32,7 @@ const fn map6to8(value: u8) -> u8 {
 // }
 
 #[inline(always)]
-fn ufloat(
-    exponent: u32,
-    mantissa: u32,
-    exponent_bits: u32,
-    mantissa_bits: u32
-) -> f32 {
+fn ufloat(exponent: u32, mantissa: u32, exponent_bits: u32, mantissa_bits: u32) -> f32 {
     if exponent == 0 && mantissa == 0 {
         return 0.0;
     }
@@ -43,7 +40,9 @@ fn ufloat(
     let mantissa_upper = (1 << mantissa_bits) as f32;
     let bias = (1 << (exponent_bits - 1)) - 1;
 
-    if exponent == 0 /* && mantissa != 0 */ {
+    if exponent == 0
+    /* && mantissa != 0 */
+    {
         (2.0f32).powi(1 - bias) * (mantissa as f32 / mantissa_upper)
     } else if exponent == 31 {
         if mantissa == 0 {
@@ -73,16 +72,33 @@ fn ufloat_11(value: u16) -> f32 {
 }
 
 macro_rules! decode_component {
-    (U8, $value:expr, $index:expr) => { $value[$index] };
-    (S8, $value:expr, $index:expr) => { ($value[$index] & 0x7F) | (!$value[$index] & 0x80) };
-    (U16, $value:expr, $index:expr) => { decode_component!(U8, $value, $index * 2 + 1) };
-    (S16, $value:expr, $index:expr) => { decode_component!(S8, $value, $index * 2 + 1) };
-    (U32, $value:expr, $index:expr) => { decode_component!(U16, $value, $index * 4 + 3) };
-    (S32, $value:expr, $index:expr) => { decode_component!(S16, $value, $index * 4 + 3) };
-    (U64, $value:expr, $index:expr) => { decode_component!(U32, $value, $index * 8 + 7) };
-    (S64, $value:expr, $index:expr) => { decode_component!(S32, $value, $index * 8 + 7) };
+    (U8, $value:expr, $index:expr) => {
+        $value[$index]
+    };
+    (S8, $value:expr, $index:expr) => {
+        ($value[$index] & 0x7F) | (!$value[$index] & 0x80)
+    };
+    (U16, $value:expr, $index:expr) => {
+        decode_component!(U8, $value, $index * 2 + 1)
+    };
+    (S16, $value:expr, $index:expr) => {
+        decode_component!(S8, $value, $index * 2 + 1)
+    };
+    (U32, $value:expr, $index:expr) => {
+        decode_component!(U16, $value, $index * 4 + 3)
+    };
+    (S32, $value:expr, $index:expr) => {
+        decode_component!(S16, $value, $index * 4 + 3)
+    };
+    (U64, $value:expr, $index:expr) => {
+        decode_component!(U32, $value, $index * 8 + 7)
+    };
+    (S64, $value:expr, $index:expr) => {
+        decode_component!(S32, $value, $index * 8 + 7)
+    };
     (F16, $value:expr, $index:expr) => {
-        ((f16::from_le_bytes($value[$index * 2..$index * 2 + 2].try_into().unwrap()).to_f32()) * 255.0) as u8
+        ((f16::from_le_bytes($value[$index * 2..$index * 2 + 2].try_into().unwrap()).to_f32())
+            * 255.0) as u8
     };
     (F32, $value:expr, $index:expr) => {
         ((f32::from_le_bytes($value[$index * 4..$index * 4 + 4].try_into().unwrap())) * 255.0) as u8
@@ -93,17 +109,39 @@ macro_rules! decode_component {
 }
 
 macro_rules! component_size {
-    (U8) => { 1 };
-    (S8) => { 1 };
-    (U16) => { 2 };
-    (S16) => { 2 };
-    (U32) => { 4 };
-    (S32) => { 4 };
-    (U64) => { 8 };
-    (S64) => { 8 };
-    (F16) => { 2 };
-    (F32) => { 4 };
-    (F64) => { 8 };
+    (U8) => {
+        1
+    };
+    (S8) => {
+        1
+    };
+    (U16) => {
+        2
+    };
+    (S16) => {
+        2
+    };
+    (U32) => {
+        4
+    };
+    (S32) => {
+        4
+    };
+    (U64) => {
+        8
+    };
+    (S64) => {
+        8
+    };
+    (F16) => {
+        2
+    };
+    (F32) => {
+        4
+    };
+    (F64) => {
+        8
+    };
 }
 
 macro_rules! decode_texel {
@@ -379,19 +417,23 @@ pub fn decode(
         PixelFormat::A8B8G8R8_sscaled_pack32 => decode!(width, height, src, dst, ABGR, S8),
         PixelFormat::A8B8G8R8_uint_pack32 => decode!(width, height, src, dst, ABGR, U8),
         PixelFormat::A8B8G8R8_sint_pack32 => decode!(width, height, src, dst, ABGR, S8),
-        PixelFormat::A8B8G8R8_srgb_pack32 => anyhow::bail!("A8B8G8R8_srgb_pack32 decoding not implemented"),
-        PixelFormat::A2R10G10B10_unorm_pack32 |
-        PixelFormat::A2R10G10B10_snorm_pack32 |
-        PixelFormat::A2R10G10B10_uscaled_pack32 |
-        PixelFormat::A2R10G10B10_sscaled_pack32 |
-        PixelFormat::A2R10G10B10_uint_pack32 |
-        PixelFormat::A2R10G10B10_sint_pack32 |
-        PixelFormat::A2B10G10R10_unorm_pack32 |
-        PixelFormat::A2B10G10R10_snorm_pack32 |
-        PixelFormat::A2B10G10R10_uscaled_pack32 |
-        PixelFormat::A2B10G10R10_sscaled_pack32 |
-        PixelFormat::A2B10G10R10_uint_pack32 |
-        PixelFormat::A2B10G10R10_sint_pack32 => anyhow::bail!("A2B10G10R10_*_pack32 decoding not implemented"),
+        PixelFormat::A8B8G8R8_srgb_pack32 => {
+            anyhow::bail!("A8B8G8R8_srgb_pack32 decoding not implemented")
+        }
+        PixelFormat::A2R10G10B10_unorm_pack32
+        | PixelFormat::A2R10G10B10_snorm_pack32
+        | PixelFormat::A2R10G10B10_uscaled_pack32
+        | PixelFormat::A2R10G10B10_sscaled_pack32
+        | PixelFormat::A2R10G10B10_uint_pack32
+        | PixelFormat::A2R10G10B10_sint_pack32
+        | PixelFormat::A2B10G10R10_unorm_pack32
+        | PixelFormat::A2B10G10R10_snorm_pack32
+        | PixelFormat::A2B10G10R10_uscaled_pack32
+        | PixelFormat::A2B10G10R10_sscaled_pack32
+        | PixelFormat::A2B10G10R10_uint_pack32
+        | PixelFormat::A2B10G10R10_sint_pack32 => {
+            anyhow::bail!("A2B10G10R10_*_pack32 decoding not implemented")
+        }
         PixelFormat::R16_unorm => decode!(width, height, src, dst, R, U16),
         PixelFormat::R16_snorm => decode!(width, height, src, dst, R, S16),
         PixelFormat::R16_uscaled => decode!(width, height, src, dst, R, U16),
@@ -461,131 +503,102 @@ pub fn decode(
         PixelFormat::BC5_unorm_block => decode_bc5(width, height, src, dst),
         PixelFormat::BC5_snorm_block => decode_bc5(width, height, src, dst),
         PixelFormat::BC6H_ufloat_block => decode_bc6h(width, height, src, dst),
-        PixelFormat::BC6H_sfloat_block => return Err(anyhow::anyhow!("BC6H_sfloat_block decoding not implemented")),
+        PixelFormat::BC6H_sfloat_block => {
+            return Err(anyhow::anyhow!(
+                "BC6H_sfloat_block decoding not implemented"
+            ));
+        }
         PixelFormat::BC7_unorm_block => decode_bc7(width, height, src, dst),
         PixelFormat::BC7_srgb_block => decode_bc7(width, height, src, dst),
 
         // opaque
-        PixelFormat::D16_unorm |
-        PixelFormat::X8_D24_unorm_pack32 |
-        PixelFormat::D32_sfloat |
-        PixelFormat::S8_uint |
-        PixelFormat::D16_unorm_S8_uint |
-        PixelFormat::D24_unorm_S8_uint |
-        PixelFormat::D32_sfloat_S8_uint => return Err(anyhow::anyhow!("Opaque pixel format: {:?}", format)),
+        PixelFormat::D16_unorm
+        | PixelFormat::X8_D24_unorm_pack32
+        | PixelFormat::D32_sfloat
+        | PixelFormat::S8_uint
+        | PixelFormat::D16_unorm_S8_uint
+        | PixelFormat::D24_unorm_S8_uint
+        | PixelFormat::D32_sfloat_S8_uint => {
+            return Err(anyhow::anyhow!("Opaque pixel format: {:?}", format));
+        }
     }
 
     Ok(())
 }
 
 #[inline(always)]
-fn decode_bc1(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn decode_bc1(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     decompress_blocks_as_rgba8(
         CompressionVariant::BC1,
         width as u32,
         height as u32,
         src,
-        dst
+        dst,
     );
 }
 
 #[inline(always)]
-fn decode_bc2(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn decode_bc2(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     decompress_blocks_as_rgba8(
         CompressionVariant::BC2,
         width as u32,
         height as u32,
         src,
-        dst
+        dst,
     );
 }
 
 #[inline(always)]
-fn decode_bc3(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn decode_bc3(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     decompress_blocks_as_rgba8(
         CompressionVariant::BC3,
         width as u32,
         height as u32,
         src,
-        dst
+        dst,
     );
 }
 
 #[inline(always)]
-fn decode_bc4(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn decode_bc4(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     decompress_blocks_as_rgba8(
         CompressionVariant::BC4,
         width as u32,
         height as u32,
         src,
-        dst
+        dst,
     );
 }
 
 #[inline(always)]
-fn decode_bc5(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn decode_bc5(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     decompress_blocks_as_rgba8(
         CompressionVariant::BC5,
         width as u32,
         height as u32,
         src,
-        dst
+        dst,
     );
 }
 
 #[inline(always)]
-fn decode_bc6h(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn decode_bc6h(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     decompress_blocks_as_rgba8(
         CompressionVariant::BC6H(BC6HSettings::basic()),
         width as u32,
         height as u32,
         src,
-        dst
+        dst,
     );
 }
 
 #[inline(always)]
-fn decode_bc7(
-    width: usize,
-    height: usize,
-    src: &[u8],
-    dst: &mut [u8],
-) {
+fn decode_bc7(width: usize, height: usize, src: &[u8], dst: &mut [u8]) {
     decompress_blocks_as_rgba8(
         CompressionVariant::BC7(BC7Settings::alpha_basic()),
         width as u32,
         height as u32,
         src,
-        dst
+        dst,
     );
 }

@@ -3,17 +3,23 @@ use std::path::PathBuf;
 use kfc::reflection::LookupKey;
 use mod_loader::ModEnvironment;
 
-use crate::{alias::Path, cache::{CacheDiff, FileStateCache}, env::{AppFeatures, AppState}, log::info, runner::LuaModRunner};
+use crate::{
+    alias::Path,
+    cache::{CacheDiff, FileStateCache},
+    env::{AppFeatures, AppState},
+    log::info,
+    runner::LuaModRunner,
+};
 
-mod runner;
+mod alias;
+mod cache;
 mod definition;
 mod env;
-mod util;
-mod log;
-mod cache;
-mod alias;
 mod load;
+mod log;
 mod lua;
+mod runner;
+mod util;
 
 #[derive(Debug, Clone, Default)]
 pub struct RunOptions {
@@ -43,10 +49,7 @@ pub struct RunResult {
     pub dlls: Vec<PathBuf>,
 }
 
-pub fn run(
-    env: &ModEnvironment,
-    mut args: RunArgs,
-) -> anyhow::Result<RunResult> {
+pub fn run(env: &ModEnvironment, mut args: RunArgs) -> anyhow::Result<RunResult> {
     info!("Running lua with options: {:?}", args);
 
     // check cache if files have changed
@@ -78,11 +81,7 @@ pub fn run(
 
     // create a new app state
 
-    let app_state = match AppState::new(
-        env.clone(),
-        args,
-        &cache_diff,
-    ) {
+    let app_state = match AppState::new(env.clone(), args, &cache_diff) {
         Ok(context) => context,
         Err(_) => anyhow::bail!("Failed to create AppState"),
     };
@@ -92,7 +91,7 @@ pub fn run(
     let runner = LuaModRunner::new(app_state)?;
 
     match runner.setup(env.mod_registry()) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(err) => {
             anyhow::bail!("Failed to setup LuaModRunner: {}", err);
         }
@@ -116,14 +115,15 @@ pub fn run(
 
         for resource in resources.iter() {
             let resource_id = &resource.resource_id;
-            let value = resource.apply(&runner.lua)
-                .map_err(|e| anyhow::anyhow!(
-                    "Failed to apply resource {resource_id}: {e}"
-                ))?;
+            let value = resource
+                .apply(&runner.lua)
+                .map_err(|e| anyhow::anyhow!("Failed to apply resource {resource_id}: {e}"))?;
 
             if let Some(value) = value {
-                let Some(r#type) = app_state.type_registry()
-                    .get_by_hash(LookupKey::Qualified(resource_id.type_hash())) else {
+                let Some(r#type) = app_state
+                    .type_registry()
+                    .get_by_hash(LookupKey::Qualified(resource_id.type_hash()))
+                else {
                     anyhow::bail!(
                         "Failed to find type with hash {:#010x} for resource {resource_id}",
                         resource_id.type_hash(),
@@ -132,11 +132,7 @@ pub fn run(
 
                 buf.clear();
 
-                if let Err(e) = value.write_into(
-                    app_state.type_registry(),
-                    r#type,
-                    &mut buf,
-                ) {
+                if let Err(e) = value.write_into(app_state.type_registry(), r#type, &mut buf) {
                     anyhow::bail!(
                         "Failed to serialize resource {resource_id} of type {}: {e}",
                         r#type.qualified_name,
@@ -170,44 +166,30 @@ pub fn run(
     }
 
     Ok(RunResult {
-        dlls: app_state.registered_dlls()
+        dlls: app_state
+            .registered_dlls()
             .into_iter()
             .map(|path| path.into_std_path_buf())
             .collect::<Vec<_>>(),
     })
 }
 
-pub fn export_lua_definitions(
-    game_dir: impl AsRef<Path>,
-    file_name: &str,
-    force: bool,
-) -> bool {
+pub fn export_lua_definitions(game_dir: impl AsRef<Path>, file_name: &str, force: bool) -> bool {
     let game_dir = game_dir.as_ref();
     let cache_dir = game_dir.join(".cache");
-    let (type_registry, is_dirty) = match crate::load::load_type_registry(
-        game_dir,
-        &cache_dir,
-        file_name,
-    ) {
-        Ok(type_registry) => type_registry,
-        Err(_) => return false,
-    };
+    let (type_registry, is_dirty) =
+        match crate::load::load_type_registry(game_dir, &cache_dir, file_name) {
+            Ok(type_registry) => type_registry,
+            Err(_) => return false,
+        };
 
-    crate::load::export_lua_definitions(
-        &cache_dir,
-        &type_registry,
-        is_dirty || force,
-    );
+    crate::load::export_lua_definitions(&cache_dir, &type_registry, is_dirty || force);
 
     true
 }
 
-pub fn restore(
-    game_dir: impl AsRef<Path>,
-    file_name: &str,
-) -> bool {
-    let kfc_path = game_dir.as_ref()
-        .join(format!("{file_name}.kfc"));
+pub fn restore(game_dir: impl AsRef<Path>, file_name: &str) -> bool {
+    let kfc_path = game_dir.as_ref().join(format!("{file_name}.kfc"));
 
     load::restore_backup(&kfc_path).is_ok()
 }

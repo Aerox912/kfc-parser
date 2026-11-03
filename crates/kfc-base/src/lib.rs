@@ -2,9 +2,9 @@ use container::StaticHash;
 
 pub mod container;
 pub mod guid;
-pub mod reflection;
 pub mod hash;
 pub mod io;
+pub mod reflection;
 
 /// Represent an fnv1a32 hash
 pub type Hash32 = u32;

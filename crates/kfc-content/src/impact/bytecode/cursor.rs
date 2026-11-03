@@ -65,5 +65,4 @@ impl<'a> Cursor<'a> {
 
         &self.content[start..end]
     }
-
 }

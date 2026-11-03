@@ -38,10 +38,7 @@ where
         &self.type_registry
     }
 
-    pub fn get_field_type(
-        &self,
-        field_name: &str
-    ) -> Option<Self> {
+    pub fn get_field_type(&self, field_name: &str) -> Option<Self> {
         let field = self.get_field_metadata(field_name)?;
         let type_registry = self.type_registry.clone();
         let field_type = Self::try_new(type_registry, field.r#type)
@@ -50,10 +47,7 @@ where
         Some(field_type)
     }
 
-    pub fn get_field_metadata(
-        &self,
-        field_name: &str
-    ) -> Option<&StructFieldMetadata> {
+    pub fn get_field_metadata(&self, field_name: &str) -> Option<&StructFieldMetadata> {
         let type_registry = self.type_registry.borrow();
         let mut r#type = self.deref();
         let mut field;
@@ -74,10 +68,7 @@ where
         field
     }
 
-    pub fn is_sub_type_of(
-        &self,
-        parent: &TypeMetadata,
-    ) -> bool {
+    pub fn is_sub_type_of(&self, parent: &TypeMetadata) -> bool {
         self.type_registry.borrow().is_sub_type(parent, self)
     }
 
@@ -96,9 +87,7 @@ where
     pub fn unwrap_typedef(self) -> Self {
         Self::new(
             self.type_registry.clone(),
-            self.type_registry.borrow()
-                .unwrap_typedef(&self)
-                .index
+            self.type_registry.borrow().unwrap_typedef(&self).index,
         )
     }
 
@@ -119,7 +108,6 @@ where
             index: 0,
         }
     }
-
 }
 
 impl<T> Deref for TypeHandle<T>
@@ -131,9 +119,7 @@ where
     #[inline]
     fn deref(&self) -> &Self::Target {
         // This assumes that the index is always valid which is guaranteed by the TypeRegistry
-        self.type_registry.borrow()
-            .get(self.index)
-            .unwrap()
+        self.type_registry.borrow().get(self.index).unwrap()
     }
 }
 
@@ -162,7 +148,9 @@ where
 
                 for _ in 0..self.depth {
                     // This is checked during construction of the iterator
-                    current_type = self.type_registry.borrow()
+                    current_type = self
+                        .type_registry
+                        .borrow()
                         .get_inner_type(current_type)
                         .unwrap();
                 }

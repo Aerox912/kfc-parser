@@ -967,6 +967,7 @@ dependencies = [
  "bitflags 2.10.0",
  "indexmap",
  "serde",
+ "serde_json",
  "thiserror 2.0.17",
  "zstd",
 ]

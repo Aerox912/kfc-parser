@@ -1,10 +1,26 @@
 use std::{any::TypeId, collections::HashMap, ops::Deref};
 
-use kfc::{guid::{ContentHash, Guid}, reflection::{LookupKey, PrimitiveType}, resource::mapped::MappingError};
+use kfc::{
+    guid::{ContentHash, Guid},
+    reflection::{LookupKey, PrimitiveType},
+    resource::mapped::MappingError,
+};
 use mlua::AnyUserData;
 use thiserror::Error;
 
-use crate::{alias::TypeHandle, env::{game::{Content, Resource}, value::{mapped::{MappedArrayValue, MappedStructValue, MappedVariantValue}, name_of, simple::{ArrayValue, StructValue, VariantValue}, util::TreePath}}, lua::{CastLuaExt, LuaValue}};
+use crate::{
+    alias::TypeHandle,
+    env::{
+        game::{Content, Resource},
+        value::{
+            mapped::{MappedArrayValue, MappedStructValue, MappedVariantValue},
+            name_of,
+            simple::{ArrayValue, StructValue, VariantValue},
+            util::TreePath,
+        },
+    },
+    lua::{CastLuaExt, LuaValue},
+};
 
 #[derive(Debug, Error)]
 #[error("at {path}: {kind}")]
@@ -16,15 +32,9 @@ pub struct LuaValidationError {
 #[derive(Debug, Error)]
 pub enum LuaValidationErrorKind {
     #[error("expected `{expected}`, got `{found}`")]
-    IncompatibleType {
-        expected: String,
-        found: String,
-    },
+    IncompatibleType { expected: String, found: String },
     #[error("missing field `{field}` in struct `{type}`")]
-    MissingField {
-        field: String,
-        r#type: String,
-    },
+    MissingField { field: String, r#type: String },
     #[error("invalid type `{0}`")]
     InvalidType(String),
     #[error("invalid guid `{0}`")]
@@ -75,7 +85,6 @@ pub struct Validator {
 }
 
 impl Validator {
-
     pub fn validate_and_clone(
         value: &LuaValue,
         r#type: &TypeHandle,
@@ -137,10 +146,7 @@ impl Validator {
     }
 
     #[inline]
-    fn process_nil(
-        &mut self,
-        value: &LuaValue,
-    ) -> Result<LuaValue, LuaValidationErrorKind> {
+    fn process_nil(&mut self, value: &LuaValue) -> Result<LuaValue, LuaValidationErrorKind> {
         match value {
             LuaValue::Nil => Ok(LuaValue::Nil),
             _ => Err(LuaValidationErrorKind::IncompatibleType {
@@ -151,10 +157,7 @@ impl Validator {
     }
 
     #[inline]
-    fn process_bool(
-        &mut self,
-        value: &LuaValue,
-    ) -> Result<LuaValue, LuaValidationErrorKind> {
+    fn process_bool(&mut self, value: &LuaValue) -> Result<LuaValue, LuaValidationErrorKind> {
         match value {
             LuaValue::Boolean(b) => Ok(LuaValue::Boolean(*b)),
             _ => Err(LuaValidationErrorKind::IncompatibleType {
@@ -172,12 +175,16 @@ impl Validator {
         max: u64,
     ) -> Result<LuaValue, LuaValidationErrorKind> {
         match value {
-            LuaValue::Integer(i) if *i as u64 >= min && *i as u64 <= max => Ok(LuaValue::Integer(*i)),
-            LuaValue::Number(n) if n.fract() == 0.0 && *n >= min as f64 && *n <= max as f64 => Ok(LuaValue::Integer(*n as i64)),
+            LuaValue::Integer(i) if *i as u64 >= min && *i as u64 <= max => {
+                Ok(LuaValue::Integer(*i))
+            }
+            LuaValue::Number(n) if n.fract() == 0.0 && *n >= min as f64 && *n <= max as f64 => {
+                Ok(LuaValue::Integer(*n as i64))
+            }
             _ => Err(LuaValidationErrorKind::IncompatibleType {
                 expected: format!("unsigned integer in range [{min}, {max}]"),
                 found: value.to_string()?,
-            })
+            }),
         }
     }
 
@@ -190,7 +197,9 @@ impl Validator {
     ) -> Result<LuaValue, LuaValidationErrorKind> {
         match value {
             LuaValue::Integer(i) if *i >= min && *i <= max => Ok(LuaValue::Integer(*i)),
-            LuaValue::Number(n) if n.fract() == 0.0 && *n >= min as f64 && *n <= max as f64 => Ok(LuaValue::Integer(*n as i64)),
+            LuaValue::Number(n) if n.fract() == 0.0 && *n >= min as f64 && *n <= max as f64 => {
+                Ok(LuaValue::Integer(*n as i64))
+            }
             _ => Err(LuaValidationErrorKind::IncompatibleType {
                 expected: format!("signed integer in range [{min}, {max}]"),
                 found: value.to_string()?,
@@ -199,10 +208,7 @@ impl Validator {
     }
 
     #[inline]
-    fn process_float(
-        &mut self,
-        value: &LuaValue,
-    ) -> Result<LuaValue, LuaValidationErrorKind> {
+    fn process_float(&mut self, value: &LuaValue) -> Result<LuaValue, LuaValidationErrorKind> {
         match value {
             LuaValue::Integer(i) => Ok(LuaValue::Number(*i as f64)),
             LuaValue::Number(n) => Ok(LuaValue::Number(*n)),
@@ -222,22 +228,23 @@ impl Validator {
         match &value {
             LuaValue::String(s) => {
                 if r#type.enum_fields.get(&s.to_string_lossy()).is_some() {
-                    return Ok(LuaValue::String(s.clone()))
+                    return Ok(LuaValue::String(s.clone()));
                 }
-            },
+            }
             LuaValue::Integer(i) => {
                 let i = *i as u64;
 
                 if let Some(field) = r#type.enum_fields.values().find(|f| f.value == i) {
-                    return Ok(LuaValue::String(self.lua.create_string(&field.name)?))
+                    return Ok(LuaValue::String(self.lua.create_string(&field.name)?));
                 }
 
                 // TODO: how should it handle unknown enum values?
-            },
-            _ => {},
+            }
+            _ => {}
         };
 
-        let enum_values = r#type.enum_fields
+        let enum_values = r#type
+            .enum_fields
             .keys()
             .map(|k| format!("\"{k}\""))
             .collect::<Vec<String>>()
@@ -264,8 +271,7 @@ impl Validator {
         value: &LuaValue,
         r#type: &TypeHandle,
     ) -> Result<LuaValue, LuaValidationErrorKind> {
-        let inner_type = r#type.inner_type()
-            .expect("invalid typedef type");
+        let inner_type = r#type.inner_type().expect("invalid typedef type");
 
         self.process(value, &inner_type)
     }
@@ -277,12 +283,8 @@ impl Validator {
         r#type: &TypeHandle,
     ) -> Result<LuaValue, LuaValidationErrorKind> {
         match value {
-            LuaValue::Table(table) => {
-                self.process_struct_fields(table, r#type)
-            },
-            LuaValue::UserData(user_data) => {
-                self.try_clone_struct_ud_lua(user_data, r#type)
-            },
+            LuaValue::Table(table) => self.process_struct_fields(table, r#type),
+            LuaValue::UserData(user_data) => self.try_clone_struct_ud_lua(user_data, r#type),
             _ => Err(LuaValidationErrorKind::IncompatibleType {
                 expected: name_of(r#type),
                 found: value.to_string()?,
@@ -308,7 +310,8 @@ impl Validator {
         let mut fields = HashMap::with_capacity(field_count as usize);
 
         for field in r#type.iter_fields() {
-            let field_type = r#type.get_field_type(&field.name)
+            let field_type = r#type
+                .get_field_type(&field.name)
                 .expect("invalid field type");
             let field_value = match table.get::<LuaValue>(field.name.as_str()) {
                 Ok(value) => value,
@@ -317,25 +320,19 @@ impl Validator {
                         field: field.name.clone(),
                         r#type: name_of(r#type),
                     });
-                },
+                }
             };
 
             self.path.push(&field.name);
 
-            let field_value = self.process(
-                &field_value,
-                &field_type,
-            )?;
+            let field_value = self.process(&field_value, &field_type)?;
 
             fields.insert(field.name.clone(), field_value);
 
             self.path.pop();
         }
 
-        let struct_value = StructValue::new_with_data(
-            r#type.clone(),
-            fields,
-        )?;
+        let struct_value = StructValue::new_with_data(r#type.clone(), fields)?;
         let ud = self.lua.create_userdata(struct_value)?;
 
         Ok(LuaValue::UserData(ud))
@@ -379,8 +376,7 @@ impl Validator {
         value: &LuaValue,
         r#type: &TypeHandle,
     ) -> Result<LuaValue, LuaValidationErrorKind> {
-        let inner_type = r#type.inner_type()
-            .expect("invalid optional type");
+        let inner_type = r#type.inner_type().expect("invalid optional type");
 
         match value {
             LuaValue::Nil => Ok(LuaValue::Nil),
@@ -399,16 +395,14 @@ impl Validator {
                 self.path.push("type");
 
                 let type_name = table.get::<String>("type")?;
-                let variant_type = r#type.type_registry()
+                let variant_type = r#type
+                    .type_registry()
                     .get_by_name(LookupKey::Qualified(&type_name))
                     .ok_or_else(|| LuaValidationErrorKind::InvalidType(type_name))?;
-                let variant_type = TypeHandle::new(
-                    r#type.type_registry().clone(),
-                    variant_type.index,
-                );
+                let variant_type =
+                    TypeHandle::new(r#type.type_registry().clone(), variant_type.index);
 
-                let base_variant_type = r#type.inner_type()
-                    .expect("invalid variant type");
+                let base_variant_type = r#type.inner_type().expect("invalid variant type");
 
                 if !variant_type.is_sub_type_of(&base_variant_type) {
                     return Err(LuaValidationErrorKind::IncompatibleType {
@@ -425,18 +419,13 @@ impl Validator {
 
                 self.path.pop();
 
-                let variant_value = VariantValue::new_with_data(
-                    r#type.clone(),
-                    variant_type,
-                    result,
-                )?;
+                let variant_value =
+                    VariantValue::new_with_data(r#type.clone(), variant_type, result)?;
                 let ud = self.lua.create_userdata(variant_value)?;
 
                 Ok(LuaValue::UserData(ud))
-            },
-            LuaValue::UserData(ud) => {
-                self.try_clone_variant_ud_lua(ud, r#type)
-            },
+            }
+            LuaValue::UserData(ud) => self.try_clone_variant_ud_lua(ud, r#type),
             _ => Err(LuaValidationErrorKind::IncompatibleType {
                 expected: name_of(r#type),
                 found: value.to_string()?,
@@ -456,7 +445,7 @@ impl Validator {
                     .ok_or_else(|| LuaValidationErrorKind::InvalidGuid(guid))?;
 
                 Ok(LuaValue::String(s.clone()))
-            },
+            }
             LuaValue::UserData(ud) => {
                 let type_id = match ud.type_id() {
                     Some(type_id) => type_id,
@@ -475,7 +464,7 @@ impl Validator {
                     expected: "object reference".to_string(),
                     found: format!("userdata `{type_id:?}`"),
                 })
-            },
+            }
             _ => Err(LuaValidationErrorKind::IncompatibleType {
                 expected: "object reference".to_string(),
                 found: value.to_string()?,
@@ -484,10 +473,7 @@ impl Validator {
     }
 
     #[inline]
-    fn process_guid(
-        &mut self,
-        value: &LuaValue,
-    ) -> Result<LuaValue, LuaValidationErrorKind> {
+    fn process_guid(&mut self, value: &LuaValue) -> Result<LuaValue, LuaValidationErrorKind> {
         let guid = value.cast::<Guid>()?.to_string();
         let lua_str = self.lua.create_string(&guid)?;
 
@@ -502,11 +488,10 @@ impl Validator {
         match &lua_value {
             LuaValue::Table(table) => {
                 let mut result = Vec::with_capacity(table.len()? as usize);
-                let inner_type = r#type.inner_type()
-                    .expect("invalid bitmask type");
+                let inner_type = r#type.inner_type().expect("invalid bitmask type");
 
-                if r#type.primitive_type == PrimitiveType::StaticArray &&
-                    table.len()? != r#type.field_count as i64
+                if r#type.primitive_type == PrimitiveType::StaticArray
+                    && table.len()? != r#type.field_count as i64
                 {
                     return Err(LuaValidationErrorKind::IncompatibleType {
                         expected: format!("array of length {}", r#type.field_count),
@@ -516,7 +501,6 @@ impl Validator {
 
                 // TODO: truncate duplicates for set-like arrays
                 for (i, entry) in table.sequence_values::<LuaValue>().enumerate() {
-
                     self.path.push_index(i);
 
                     let value = entry?;
@@ -527,14 +511,11 @@ impl Validator {
                     self.path.pop();
                 }
 
-                let array_value = ArrayValue::new_with_data(
-                    r#type.clone(),
-                    result
-                )?;
+                let array_value = ArrayValue::new_with_data(r#type.clone(), result)?;
                 let ud = self.lua.create_userdata(array_value)?;
 
                 Ok(LuaValue::UserData(ud))
-            },
+            }
             LuaValue::UserData(ud) => self.try_clone_array_ud_lua(ud, r#type),
             _ => Err(LuaValidationErrorKind::IncompatibleType {
                 expected: name_of(r#type),
@@ -568,7 +549,7 @@ impl Validator {
                 let ud = self.lua.create_userdata(new_struct_value)?;
 
                 Ok(LuaValue::UserData(ud))
-            },
+            }
             id if id == TypeId::of::<MappedStructValue>() => {
                 let struct_value = ud.borrow::<MappedStructValue>()?;
 
@@ -583,7 +564,7 @@ impl Validator {
                 let ud = self.lua.create_userdata(new_struct_value)?;
 
                 Ok(LuaValue::UserData(ud))
-            },
+            }
             id if id == TypeId::of::<Content>() => {
                 let content = ud.borrow::<Content>()?;
 
@@ -596,11 +577,11 @@ impl Validator {
                 table.set("hash2", guid.hash2())?;
 
                 self.process_struct_fields(&table, r#type)
-            },
+            }
             _ => Err(LuaValidationErrorKind::IncompatibleType {
                 expected: name_of(r#type),
                 found: format!("userdata `{type_id:?}`"),
-            })
+            }),
         }
     }
 
@@ -629,7 +610,7 @@ impl Validator {
                 let ud = self.lua.create_userdata(new_array_value)?;
 
                 Ok(LuaValue::UserData(ud))
-            },
+            }
             id if id == TypeId::of::<MappedArrayValue>() => {
                 let array_value = ud.borrow::<MappedArrayValue>()?;
 
@@ -644,11 +625,11 @@ impl Validator {
                 let ud = self.lua.create_userdata(new_array_value)?;
 
                 Ok(LuaValue::UserData(ud))
-            },
+            }
             _ => Err(LuaValidationErrorKind::IncompatibleType {
                 expected: name_of(r#type),
                 found: format!("userdata `{type_id:?}`"),
-            })
+            }),
         }
     }
 
@@ -677,7 +658,7 @@ impl Validator {
                 let ud = self.lua.create_userdata(new_variant_value)?;
 
                 Ok(LuaValue::UserData(ud))
-            },
+            }
             id if id == TypeId::of::<MappedVariantValue>() => {
                 let variant_value = ud.borrow::<MappedVariantValue>()?;
 
@@ -692,20 +673,16 @@ impl Validator {
                 let ud = self.lua.create_userdata(new_variant_value)?;
 
                 Ok(LuaValue::UserData(ud))
-            },
+            }
             _ => Err(LuaValidationErrorKind::IncompatibleType {
                 expected: name_of(r#type),
                 found: format!("userdata `{type_id:?}`"),
-            })
+            }),
         }
     }
-
 }
 
-pub fn try_clone_lua_value(
-    lua_value: &LuaValue,
-    lua: &mlua::Lua,
-) -> mlua::Result<LuaValue> {
+pub fn try_clone_lua_value(lua_value: &LuaValue, lua: &mlua::Lua) -> mlua::Result<LuaValue> {
     match lua_value {
         LuaValue::UserData(ud) => {
             let type_id = match ud.type_id() {
@@ -718,47 +695,41 @@ pub fn try_clone_lua_value(
                     let struct_value = ud.borrow::<StructValue>()?;
                     let cloned_struct = struct_value.try_clone_lua(lua)?;
 
-                    lua.create_userdata(cloned_struct)
-                        .map(LuaValue::UserData)
-                },
+                    lua.create_userdata(cloned_struct).map(LuaValue::UserData)
+                }
                 id if id == TypeId::of::<MappedStructValue>() => {
                     let struct_value = ud.borrow::<MappedStructValue>()?;
                     let cloned_struct = struct_value.try_clone_lua(lua)?;
 
-                    lua.create_userdata(cloned_struct)
-                        .map(LuaValue::UserData)
-                },
+                    lua.create_userdata(cloned_struct).map(LuaValue::UserData)
+                }
                 id if id == TypeId::of::<ArrayValue>() => {
                     let array_value = ud.borrow::<ArrayValue>()?;
                     let cloned_array = array_value.try_clone_lua(lua)?;
 
-                    lua.create_userdata(cloned_array)
-                        .map(LuaValue::UserData)
-                },
+                    lua.create_userdata(cloned_array).map(LuaValue::UserData)
+                }
                 id if id == TypeId::of::<MappedArrayValue>() => {
                     let array_value = ud.borrow::<MappedArrayValue>()?;
                     let cloned_array = array_value.try_clone_lua(lua)?;
 
-                    lua.create_userdata(cloned_array)
-                        .map(LuaValue::UserData)
-                },
+                    lua.create_userdata(cloned_array).map(LuaValue::UserData)
+                }
                 id if id == TypeId::of::<VariantValue>() => {
                     let variant_value = ud.borrow::<VariantValue>()?;
                     let cloned_variant = variant_value.try_clone_lua(lua)?;
 
-                    lua.create_userdata(cloned_variant)
-                        .map(LuaValue::UserData)
-                },
+                    lua.create_userdata(cloned_variant).map(LuaValue::UserData)
+                }
                 id if id == TypeId::of::<MappedVariantValue>() => {
                     let variant_value = ud.borrow::<MappedVariantValue>()?;
                     let cloned_variant = variant_value.try_clone_lua(lua)?;
 
-                    lua.create_userdata(cloned_variant)
-                        .map(LuaValue::UserData)
-                },
+                    lua.create_userdata(cloned_variant).map(LuaValue::UserData)
+                }
                 _ => panic!("unexpected user data type in clone_lua_value"),
             }
-        },
+        }
         _ => Ok(lua_value.clone()),
     }
 }

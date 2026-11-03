@@ -4,15 +4,14 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-use crate::hash::fnv_bytes;
 use crate::Hash32;
+use crate::hash::fnv_bytes;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 #[repr(align(4))]
 pub struct Guid([u8; 16]);
 
 impl Guid {
-
     pub const NONE: Self = Self([0; 16]);
 
     #[inline]
@@ -52,15 +51,15 @@ impl Guid {
     pub const fn hash32(&self) -> Hash32 {
         fnv_bytes(&self.0)
     }
-
 }
 
 impl FromStr for Guid {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(str_to_guid(s)
-            .ok_or_else(|| format!("invalid guid string: {s}"))?))
+        Ok(Self(
+            str_to_guid(s).ok_or_else(|| format!("invalid guid string: {s}"))?,
+        ))
     }
 }
 
@@ -82,9 +81,7 @@ impl<'de> Deserialize<'de> for Guid {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Self::parse(&s).ok_or_else(|| {
-            serde::de::Error::custom(format!("invalid guid string: {s}"))
-        })
+        Self::parse(&s).ok_or_else(|| serde::de::Error::custom(format!("invalid guid string: {s}")))
     }
 }
 
@@ -98,7 +95,6 @@ impl Serialize for Guid {
 }
 
 impl Guid {
-
     #[inline]
     pub fn read<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut data = [0; 16];
@@ -111,7 +107,6 @@ impl Guid {
     pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         writer.write_all(&self.0)
     }
-
 }
 
 impl From<[u8; 16]> for Guid {
@@ -219,12 +214,8 @@ mod tests {
     use super::*;
 
     const TEST_GUID_BYTES: [u8; 16] = [
-        0x33, 0x22, 0x11, 0x00,
-        0x55, 0x44,
-        0x77, 0x66,
-        0x88, 0x99,
-        0xAA, 0xBB, 0xCC, 0xDD,
-        0xEE, 0xFF
+        0x33, 0x22, 0x11, 0x00, 0x55, 0x44, 0x77, 0x66, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
+        0xFF,
     ];
 
     const TEST_GUID_STR_LOWER: &str = "00112233-4455-6677-8899-aabbccddeeff";
@@ -232,16 +223,14 @@ mod tests {
 
     #[test]
     fn test_string_to_guid() {
-        let guid = str_to_guid(TEST_GUID_STR_LOWER)
-            .expect("Failed to convert string to GUID");
+        let guid = str_to_guid(TEST_GUID_STR_LOWER).expect("Failed to convert string to GUID");
 
         assert_eq!(guid, TEST_GUID_BYTES);
     }
 
     #[test]
     fn test_guid_to_guid_upper() {
-        let guid = str_to_guid(TEST_GUID_STR_UPPER)
-            .expect("Failed to convert string to GUID");
+        let guid = str_to_guid(TEST_GUID_STR_UPPER).expect("Failed to convert string to GUID");
 
         assert_eq!(guid, TEST_GUID_BYTES);
     }
@@ -260,16 +249,11 @@ mod tests {
     #[test]
     fn test_guid_to_string() {
         let guid = [
-            0x33, 0x22, 0x11, 0x00,
-            0x55, 0x44,
-            0x77, 0x66,
-            0x88, 0x99,
-            0xAA, 0xBB, 0xCC, 0xDD,
-            0xEE, 0xFF
+            0x33, 0x22, 0x11, 0x00, 0x55, 0x44, 0x77, 0x66, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD,
+            0xEE, 0xFF,
         ];
         let guid_str = guid_to_string(&guid);
 
         assert_eq!(guid_str, TEST_GUID_STR_LOWER);
     }
-
 }

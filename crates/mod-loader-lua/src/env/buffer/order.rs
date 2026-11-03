@@ -11,17 +11,17 @@ pub enum ByteOrder {
 impl CastLua<'_> for ByteOrder {
     type Output = Self;
 
-    fn try_cast_lua(
-        value: &LuaValue
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &LuaValue) -> mlua::Result<Option<Self::Output>> {
         match &value {
-            LuaValue::String(s) => if s == "big" {
-                Ok(Some(Self::BigEndian))
-            } else if s == "little" {
-                Ok(Some(Self::LittleEndian))
-            } else {
-                Ok(None)
-            },
+            LuaValue::String(s) => {
+                if s == "big" {
+                    Ok(Some(Self::BigEndian))
+                } else if s == "little" {
+                    Ok(Some(Self::LittleEndian))
+                } else {
+                    Ok(None)
+                }
+            }
             _ => Ok(None),
         }
     }

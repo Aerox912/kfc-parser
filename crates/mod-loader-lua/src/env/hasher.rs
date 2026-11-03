@@ -1,11 +1,12 @@
 use crc::Crc;
 use kfc::hash::fnv_bytes;
 
-use crate::{env::buffer::Buffer, lua::{Either, FunctionArgs, LuaValue}};
+use crate::{
+    env::buffer::Buffer,
+    lua::{Either, FunctionArgs, LuaValue},
+};
 
-pub fn create(
-    lua: &mlua::Lua
-) -> mlua::Result<mlua::Table> {
+pub fn create(lua: &mlua::Lua) -> mlua::Result<mlua::Table> {
     let table = lua.create_table()?;
 
     table.raw_set("fnv1a32", lua.create_function(lua_fnv1a32)?)?;
@@ -15,10 +16,7 @@ pub fn create(
     Ok(table)
 }
 
-fn lua_fnv1a32(
-    _: &mlua::Lua,
-    args: FunctionArgs
-) -> mlua::Result<u32> {
+fn lua_fnv1a32(_: &mlua::Lua, args: FunctionArgs) -> mlua::Result<u32> {
     let value = args.get::<Either<&[u8], &Buffer>>(0)?;
 
     let hash = match value {
@@ -29,10 +27,7 @@ fn lua_fnv1a32(
     Ok(hash)
 }
 
-fn lua_crc32(
-    _: &mlua::Lua,
-    args: FunctionArgs
-) -> mlua::Result<u32> {
+fn lua_crc32(_: &mlua::Lua, args: FunctionArgs) -> mlua::Result<u32> {
     let value = args.get::<Either<&[u8], &Buffer>>(0)?;
     let crc = Crc::<u32>::new(&crc::CRC_32_ISO_HDLC);
 
@@ -44,10 +39,7 @@ fn lua_crc32(
     Ok(hash)
 }
 
-fn lua_crc64(
-    _: &mlua::Lua,
-    args: FunctionArgs
-) -> mlua::Result<LuaValue> {
+fn lua_crc64(_: &mlua::Lua, args: FunctionArgs) -> mlua::Result<LuaValue> {
     let value = args.get::<Either<&[u8], &Buffer>>(0)?;
     let crc = Crc::<u64>::new(&crc::CRC_64_ECMA_182);
 

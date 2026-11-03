@@ -2,7 +2,7 @@ use std::env;
 
 use tracing::level_filters::LevelFilter;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
+use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 const ENV_LOG_FILE_FILTER: &str = "EML_LOG_FILE_FILTER";
 const ENV_LOG_FILE_ENABLED: &str = "EML_LOG_FILE_ENABLED";

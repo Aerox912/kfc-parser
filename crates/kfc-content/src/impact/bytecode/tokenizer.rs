@@ -1,5 +1,5 @@
-use super::token::*;
 use super::cursor::Cursor;
+use super::token::*;
 
 pub struct Tokenizer<'a> {
     cursor: Cursor<'a>,
@@ -90,7 +90,7 @@ impl<'a> Tokenizer<'a> {
     #[inline]
     fn skip_while<F>(&mut self, mut predicate: F)
     where
-        F: FnMut(char) -> bool
+        F: FnMut(char) -> bool,
     {
         while predicate(self.cursor.first()) && !self.cursor.is_eof() {
             self.skip();
@@ -112,5 +112,4 @@ impl<'a> Tokenizer<'a> {
             false
         }
     }
-
 }

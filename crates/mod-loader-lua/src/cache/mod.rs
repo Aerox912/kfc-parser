@@ -23,7 +23,6 @@ impl Default for FileStateCache {
 }
 
 impl FileStateCache {
-
     pub fn error() -> Self {
         Self {
             build_id: String::new(),
@@ -31,19 +30,17 @@ impl FileStateCache {
         }
     }
 
-    pub fn track(
-        &mut self,
-        path: impl Into<PathBuf>,
-    ) {
+    pub fn track(&mut self, path: impl Into<PathBuf>) {
         let path = path.into();
-        let timestamp = path.metadata()
-            .map_or(0, |m| m.modified()
-                .map_or(0, |t| t.duration_since(std::time::UNIX_EPOCH)
-                    .map_or(0, |d| d.as_secs())));
+        let timestamp = path.metadata().map_or(0, |m| {
+            m.modified().map_or(0, |t| {
+                t.duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_secs())
+            })
+        });
 
         self.files.insert(path, timestamp);
     }
-
 }
 
 pub struct CacheDiff {
@@ -53,7 +50,6 @@ pub struct CacheDiff {
 
 #[allow(dead_code)]
 impl CacheDiff {
-
     pub fn new_dirty() -> Self {
         Self {
             build_id_changed: true,
@@ -76,11 +72,9 @@ impl CacheDiff {
     pub fn is_some(&self) -> bool {
         self.build_id_changed || self.files_changed
     }
-
 }
 
 impl FileStateCache {
-
     pub fn diff(&self, other: &Self) -> CacheDiff {
         CacheDiff {
             build_id_changed: !self.eq_build_id(other),
@@ -99,7 +93,7 @@ impl FileStateCache {
                     if cached_timestamp != timestamp {
                         return false;
                     }
-                },
+                }
                 None => {
                     return false;
                 }
@@ -114,5 +108,4 @@ impl FileStateCache {
 
         true
     }
-
 }

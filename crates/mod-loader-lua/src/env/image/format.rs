@@ -5,9 +5,7 @@ use crate::lua::{CastLua, LuaValue};
 impl CastLua<'_> for ImageFormat {
     type Output = Self;
 
-    fn try_cast_lua(
-        value: &LuaValue
-    ) -> mlua::Result<Option<Self::Output>> {
+    fn try_cast_lua(value: &LuaValue) -> mlua::Result<Option<Self::Output>> {
         match &value {
             LuaValue::String(s) => {
                 let bytes = s.as_bytes();
@@ -35,7 +33,7 @@ impl CastLua<'_> for ImageFormat {
                     "pcx" => Ok(Some(Self::Pcx)),
                     _ => Ok(None),
                 }
-            },
+            }
             _ => Ok(None),
         }
     }

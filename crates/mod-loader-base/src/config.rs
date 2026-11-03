@@ -21,7 +21,6 @@ impl Default for Config {
 }
 
 impl Config {
-
     pub fn load(path: impl AsRef<std::path::Path>) -> Result<Self, Box<dyn std::error::Error>> {
         if !path.as_ref().exists() {
             let default = Self::default();
@@ -37,5 +36,4 @@ impl Config {
 
         Ok(config)
     }
-
 }

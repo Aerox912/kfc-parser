@@ -7,7 +7,6 @@ pub struct RequirePath<'a> {
 }
 
 impl RequirePath<'_> {
-
     #[inline]
     pub fn mod_id(&self) -> &str {
         self.mod_id
@@ -23,10 +22,7 @@ impl RequirePath<'_> {
         self.is_local
     }
 
-    pub fn parse<'a>(
-        id: &'a str,
-        fallback_mod_id: &'a str
-    ) -> mlua::Result<RequirePath<'a>> {
+    pub fn parse<'a>(id: &'a str, fallback_mod_id: &'a str) -> mlua::Result<RequirePath<'a>> {
         let mod_id: &str;
         let path: &str;
         let is_local: bool;
@@ -77,6 +73,4 @@ impl RequirePath<'_> {
     pub fn qualified_id(&self) -> String {
         format!("mods.{}.{}", self.mod_id, self.path)
     }
-
 }
-

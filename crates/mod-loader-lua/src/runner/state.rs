@@ -1,10 +1,17 @@
-use std::{cell::{Ref, RefCell}, collections::{HashMap, HashSet}, rc::Rc};
+use std::{
+    cell::{Ref, RefCell},
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
 use mlua::Table;
 use mod_loader::{FileSystem, Mod, ModManifest};
 use parking_lot::MutexGuard;
 
-use crate::{lua::{LuaError, LuaValue}, util::RequirePath};
+use crate::{
+    lua::{LuaError, LuaValue},
+    util::RequirePath,
+};
 
 pub struct ModLuaState {
     r#mod: Mod,
@@ -12,7 +19,6 @@ pub struct ModLuaState {
 }
 
 impl ModLuaState {
-
     #[inline]
     pub fn info(&self) -> &ModManifest {
         self.r#mod.info()
@@ -22,7 +28,6 @@ impl ModLuaState {
     pub fn fs(&self) -> MutexGuard<FileSystem> {
         self.r#mod.fs()
     }
-
 }
 
 #[derive(Default)]
@@ -33,31 +38,19 @@ pub struct RunnerState {
 }
 
 impl RunnerState {
-
     #[inline]
     pub fn mods(&self) -> Ref<HashMap<String, ModLuaState>> {
         self.mods.borrow()
     }
 
-    pub fn add_mod(
-        &self,
-        r#mod: Mod,
-        env: Table,
-    ) {
+    pub fn add_mod(&self, r#mod: Mod, env: Table) {
         let id = r#mod.info().id.clone();
-        let state = ModLuaState {
-            r#mod,
-            env,
-        };
+        let state = ModLuaState { r#mod, env };
 
         self.mods.borrow_mut().insert(id, state);
     }
 
-    pub fn require(
-        &self,
-        qualified_id: &str,
-        lua: &mlua::Lua,
-    ) -> mlua::Result<LuaValue> {
+    pub fn require(&self, qualified_id: &str, lua: &mlua::Lua) -> mlua::Result<LuaValue> {
         if let Some(table) = self.loaded.borrow().get(qualified_id) {
             return Ok(table.clone());
         }
@@ -67,14 +60,17 @@ impl RunnerState {
             return Err(LuaError::circular_dependency(qualified_id));
         }
 
-        self.is_loading.borrow_mut().insert(qualified_id.to_string());
+        self.is_loading
+            .borrow_mut()
+            .insert(qualified_id.to_string());
 
         // load the module
         let require_path = RequirePath::parse_qualified(qualified_id)?;
 
         let func = {
             let mods = self.mods.borrow();
-            let mod_state = mods.get(require_path.mod_id())
+            let mod_state = mods
+                .get(require_path.mod_id())
                 .ok_or_else(|| LuaError::mod_not_found(require_path.mod_id()))?;
 
             let mut path = String::new();
@@ -91,10 +87,11 @@ impl RunnerState {
             }
 
             let mut fs = mod_state.fs();
-            let reader = fs.read_file(&path)
+            let reader = fs
+                .read_file(&path)
                 .map_err(|e| LuaError::module_load(&path, e))?;
-            let chunk = std::io::read_to_string(reader)
-                .map_err(|e| LuaError::module_load(&path, e))?;
+            let chunk =
+                std::io::read_to_string(reader).map_err(|e| LuaError::module_load(&path, e))?;
 
             drop(fs);
 
@@ -119,7 +116,6 @@ impl RunnerState {
 
         Ok(result)
     }
-
 }
 
 pub struct RunnerLocalState {
@@ -129,12 +125,8 @@ pub struct RunnerLocalState {
 }
 
 impl RunnerLocalState {
-
     #[inline]
-    pub fn new<S: AsRef<str>>(
-        mod_id: S,
-        global_state: Rc<RunnerState>
-    ) -> Self {
+    pub fn new<S: AsRef<str>>(mod_id: S, global_state: Rc<RunnerState>) -> Self {
         Self {
             mod_id: mod_id.as_ref().to_string(),
             loaded: RefCell::new(HashMap::new()),
@@ -142,11 +134,7 @@ impl RunnerLocalState {
         }
     }
 
-    pub fn require(
-        &self,
-        id: &str,
-        lua: &mlua::Lua,
-    ) -> mlua::Result<LuaValue> {
+    pub fn require(&self, id: &str, lua: &mlua::Lua) -> mlua::Result<LuaValue> {
         // lookup local cache first
         if let Some(table) = self.loaded.borrow().get(id) {
             return Ok(table.clone());
@@ -165,11 +153,11 @@ impl RunnerLocalState {
 
         // register mod as loaded in local state
         if require_path.is_local() {
-            self.loaded.borrow_mut().insert(require_path.path().to_string(), result.clone());
+            self.loaded
+                .borrow_mut()
+                .insert(require_path.path().to_string(), result.clone());
         }
 
         Ok(result)
     }
-
 }
-

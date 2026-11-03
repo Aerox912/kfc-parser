@@ -7,9 +7,9 @@ use indexmap::IndexMap;
 use crate::reflection::TypeIndex;
 use crate::{hash::fnv, io::ReadExt};
 
+use super::error::ReflectionParseError;
 use super::pe_file::{PEFile, ReadPEExt};
 use super::types::*;
-use super::error::ReflectionParseError;
 
 pub fn extract_reflection_data<P: AsRef<Path>>(
     exe_file: P,
@@ -17,42 +17,47 @@ pub fn extract_reflection_data<P: AsRef<Path>>(
     let pe_file = PEFile::load_from_file(exe_file)?;
     // let data_section_offset = pe_file.offset_to_section(".data")
     //     .ok_or(ReflectionParseError::MissingDataSection)?;
-    let rdata_section_offset = pe_file.offset_to_section(".rdata")
+    let rdata_section_offset = pe_file
+        .offset_to_section(".rdata")
         .ok_or(ReflectionParseError::MissingRDataSection)?;
 
-    let offset_to_blob_string_literal = pe_file.find(
-        rdata_section_offset - 1,
-        [0x00, 0x42, 0x6C, 0x6F, 0x62, 0x53, 0x74, 0x72, 0x69, 0x6E, 0x67, 0x00],
-        8
-    )
+    let offset_to_blob_string_literal = pe_file
+        .find(
+            rdata_section_offset - 1,
+            [
+                0x00, 0x42, 0x6C, 0x6F, 0x62, 0x53, 0x74, 0x72, 0x69, 0x6E, 0x67, 0x00,
+            ],
+            8,
+        )
         .and_then(|offset| pe_file.fo_to_va(offset + 1))
         .ok_or(ReflectionParseError::MalformedPattern)?;
 
-    let offset_to_uint32_literal = pe_file.find(
-        rdata_section_offset - 1,
-        [0x00, 0x75, 0x69, 0x6E, 0x74, 0x33, 0x32, 0x00],
-        8
-    )
+    let offset_to_uint32_literal = pe_file
+        .find(
+            rdata_section_offset - 1,
+            [0x00, 0x75, 0x69, 0x6E, 0x74, 0x33, 0x32, 0x00],
+            8,
+        )
         .and_then(|offset| pe_file.fo_to_va(offset + 1))
         .ok_or(ReflectionParseError::MalformedPattern)?;
 
-    let offset_1 = pe_file.find_pointer_to_0va(rdata_section_offset, offset_to_blob_string_literal)
+    let offset_1 = pe_file
+        .find_pointer_to_0va(rdata_section_offset, offset_to_blob_string_literal)
         .and_then(|offset| pe_file.fo_to_va(offset))
         .ok_or(ReflectionParseError::MalformedPattern)?;
 
-    let offset_2 = pe_file.find_pointer_to_0va(rdata_section_offset, offset_to_uint32_literal)
+    let offset_2 = pe_file
+        .find_pointer_to_0va(rdata_section_offset, offset_to_uint32_literal)
         .and_then(|offset| pe_file.fo_to_va(offset))
         .ok_or(ReflectionParseError::MalformedPattern)?;
 
-    let offset = pe_file.find_pointer_to_0va2x(
-        rdata_section_offset,
-        offset_1,
-        offset_2
-    )
+    let offset = pe_file
+        .find_pointer_to_0va2x(rdata_section_offset, offset_1, offset_2)
         .and_then(|offset| pe_file.fo_to_va(offset))
         .ok_or(ReflectionParseError::MalformedPattern)?;
 
-    let offset = pe_file.find_pointer_to_0va(rdata_section_offset, offset)
+    let offset = pe_file
+        .find_pointer_to_0va(rdata_section_offset, offset)
         .ok_or(ReflectionParseError::MalformedPattern)?;
 
     let mut cursor = pe_file.get_cursor_at(offset)?;
@@ -75,7 +80,7 @@ pub fn extract_reflection_data<P: AsRef<Path>>(
             &mut type_cursor,
             &pe_file,
             &reference_table,
-            TypeIndex(i as usize)
+            TypeIndex(i as usize),
         )?;
 
         table.push(ty);
@@ -132,11 +137,14 @@ fn read_type(
     reference_table: &HashMap<u64, usize>,
     index: TypeIndex,
 ) -> std::result::Result<TypeMetadata, ReflectionParseError> {
-    let name = cursor.read_pointee(pe_file)?
+    let name = cursor
+        .read_pointee(pe_file)?
         .read_string(cursor.read_u64()? as usize)?;
-    let impact_name = cursor.read_pointee(pe_file)?
+    let impact_name = cursor
+        .read_pointee(pe_file)?
         .read_string(cursor.read_u64()? as usize)?;
-    let qualified_name = cursor.read_pointee(pe_file)?
+    let qualified_name = cursor
+        .read_pointee(pe_file)?
         .read_string(cursor.read_u64()? as usize)?;
 
     let namespace_cursor = cursor.read_pointee(pe_file)?;
@@ -149,36 +157,28 @@ fn read_type(
     let element_alignment = cursor.read_u16()?;
     let field_count = cursor.read_u32()?;
     let primitive_type = cursor.read_u8()?;
-    let primitive_type = PrimitiveType::from_u8(primitive_type)
-        .ok_or_else(|| ReflectionParseError::UnknownPrimitiveType {
+    let primitive_type = PrimitiveType::from_u8(primitive_type).ok_or_else(|| {
+        ReflectionParseError::UnknownPrimitiveType {
             value: primitive_type,
             name: qualified_name.clone(),
-        })?;
+        }
+    })?;
     let flags = TypeFlags::from_bits_truncate(cursor.read_u8()?);
     cursor.padding(2)?;
     let qualified_hash = cursor.read_u32()?;
     let internal_hash = cursor.read_u32()?;
 
-    let struct_fields = cursor.read_pointee_opt(pe_file)?
+    let struct_fields = cursor
+        .read_pointee_opt(pe_file)?
         .map(|mut cursor| {
-            read_struct_fields(
-                &mut cursor,
-                field_count as u64,
-                pe_file,
-                reference_table
-            )
+            read_struct_fields(&mut cursor, field_count as u64, pe_file, reference_table)
         })
         .transpose()?
         .unwrap_or_else(IndexMap::new);
 
-    let enum_fields = cursor.read_pointee_opt(pe_file)?
-        .map(|mut cursor| {
-            read_enum_fields(
-                &mut cursor,
-                field_count as u64,
-                pe_file
-            )
-        })
+    let enum_fields = cursor
+        .read_pointee_opt(pe_file)?
+        .map(|mut cursor| read_enum_fields(&mut cursor, field_count as u64, pe_file))
         .transpose()?
         .unwrap_or_else(IndexMap::new);
 
@@ -186,22 +186,18 @@ fn read_type(
 
     let default_value_cursor = cursor.read_pointee_opt(pe_file)?;
     let default_value_len = cursor.read_u64()?;
-    let default_value = default_value_cursor.map(|mut cursor| {
-        let mut value = vec![0; default_value_len as usize];
-        cursor.read_exact(&mut value)?;
-        Result::Ok(value)
-    }).transpose()?;
+    let default_value = default_value_cursor
+        .map(|mut cursor| {
+            let mut value = vec![0; default_value_len as usize];
+            cursor.read_exact(&mut value)?;
+            Result::Ok(value)
+        })
+        .transpose()?;
 
     let attributes_cursor = cursor.read_pointee_opt(pe_file)?;
     let attributes_count = cursor.read_u64()?;
-    let attributes = attributes_cursor.map(|mut cursor| {
-        read_attributes(
-            &mut cursor,
-            attributes_count,
-            pe_file,
-            reference_table
-        )
-    })
+    let attributes = attributes_cursor
+        .map(|mut cursor| read_attributes(&mut cursor, attributes_count, pe_file, reference_table))
         .transpose()?
         .unwrap_or_else(IndexMap::new);
 
@@ -239,11 +235,7 @@ fn read_struct_fields(
     let mut fields = IndexMap::with_capacity(count as usize);
 
     for _ in 0..count {
-        let field = read_struct_field(
-            cursor,
-            pe_file,
-            reference_table
-        )?;
+        let field = read_struct_field(cursor, pe_file, reference_table)?;
 
         fields.insert(field.name.clone(), field);
     }
@@ -268,7 +260,8 @@ fn read_struct_field(
     pe_file: &PEFile,
     reference_table: &HashMap<u64, usize>,
 ) -> Result<StructFieldMetadata> {
-    let name = cursor.read_pointee(pe_file)?
+    let name = cursor
+        .read_pointee(pe_file)?
         .read_string(cursor.read_u64()? as usize)?;
     let r#type = read_type_ref(cursor, reference_table)?
         .ok_or_else(|| Error::new(ErrorKind::InvalidData, "TypeRef is None"))?;
@@ -276,14 +269,8 @@ fn read_struct_field(
     let attributes_cursor = cursor.read_pointee_opt(pe_file)?;
     let attribute_count = cursor.read_u64()?;
 
-    let attributes = attributes_cursor.map(|mut cursor| {
-        read_attributes(
-            &mut cursor,
-            attribute_count,
-            pe_file,
-            reference_table
-        )
-    })
+    let attributes = attributes_cursor
+        .map(|mut cursor| read_attributes(&mut cursor, attribute_count, pe_file, reference_table))
         .transpose()?
         .unwrap_or_else(IndexMap::new);
 
@@ -303,10 +290,7 @@ fn read_enum_fields(
     let mut fields = IndexMap::with_capacity(count as usize);
 
     for _ in 0..count {
-        let field = read_enum_field(
-            cursor,
-            pe_file
-        )?;
+        let field = read_enum_field(cursor, pe_file)?;
 
         fields.insert(field.name.clone(), field);
     }
@@ -324,20 +308,15 @@ fn read_enum_fields(
 ///     u8 padding[16];
 /// }
 /// ```
-fn read_enum_field(
-    cursor: &mut Cursor<&[u8]>,
-    pe_file: &PEFile,
-) -> Result<EnumFieldMetadata> {
-    let name = cursor.read_pointee(pe_file)?
+fn read_enum_field(cursor: &mut Cursor<&[u8]>, pe_file: &PEFile) -> Result<EnumFieldMetadata> {
+    let name = cursor
+        .read_pointee(pe_file)?
         .read_string(cursor.read_u64()? as usize)?;
     let value = cursor.read_u64()?;
 
     cursor.padding(16)?;
 
-    Ok(EnumFieldMetadata {
-        name,
-        value,
-    })
+    Ok(EnumFieldMetadata { name, value })
 }
 
 fn read_attributes(
@@ -349,11 +328,7 @@ fn read_attributes(
     let mut attributes = IndexMap::with_capacity(count as usize);
 
     for _ in 0..count {
-        let attribute = read_attribute(
-            cursor,
-            pe_file,
-            reference_table
-        )?;
+        let attribute = read_attribute(cursor, pe_file, reference_table)?;
 
         attributes.insert(attribute.name.clone(), attribute);
     }
@@ -383,12 +358,14 @@ fn read_attribute(
     reference_table: &HashMap<u64, usize>,
 ) -> Result<Attribute> {
     let mut data_cursor = cursor.read_pointee(pe_file)?;
-    let value = cursor.read_pointee(pe_file)?
+    let value = cursor
+        .read_pointee(pe_file)?
         .read_string(cursor.read_u64()? as usize)?;
 
     // data
     let namespace = read_namespace(data_cursor.read_pointee(pe_file)?, pe_file)?;
-    let name = data_cursor.read_pointee(pe_file)?
+    let name = data_cursor
+        .read_pointee(pe_file)?
         .read_string(data_cursor.read_u64()? as usize)?;
     let r#type = read_type_ref(&mut data_cursor, reference_table)?;
 
@@ -409,15 +386,13 @@ fn read_attribute(
 ///     Namespace* parent;
 /// };
 /// ```
-fn read_namespace(
-    cursor: Cursor<&[u8]>,
-    pe_file: &PEFile,
-) -> Result<Vec<String>> {
+fn read_namespace(cursor: Cursor<&[u8]>, pe_file: &PEFile) -> Result<Vec<String>> {
     let mut namespaces = Vec::new();
     let mut parent_cursor = Some(cursor);
 
     while let Some(mut cursor) = parent_cursor {
-        let name = cursor.read_pointee(pe_file)?
+        let name = cursor
+            .read_pointee(pe_file)?
             .read_string(cursor.read_u64()? as usize)?;
 
         namespaces.push(name);

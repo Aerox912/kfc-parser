@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use clap_derive::{Parser, Subcommand};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(version)]
@@ -25,7 +25,12 @@ pub enum Commands {
         file_name: Option<String>,
 
         /// Output directory
-        #[arg(short, long, required_unless_present = "stdout", conflicts_with = "stdout")]
+        #[arg(
+            short,
+            long,
+            required_unless_present = "stdout",
+            conflicts_with = "stdout"
+        )]
         output: Option<PathBuf>,
 
         /// Comma separated filter by type (prefixed with t) or guid
@@ -33,7 +38,12 @@ pub enum Commands {
         filter: String,
 
         /// Write unpacked content to stdout (newline-separated)
-        #[arg(short, long, required_unless_present = "output", conflicts_with = "output")]
+        #[arg(
+            short,
+            long,
+            required_unless_present = "output",
+            conflicts_with = "output"
+        )]
         stdout: bool,
     },
 
@@ -48,11 +58,21 @@ pub enum Commands {
         file_name: Option<String>,
 
         /// Input directory containing unpacked files
-        #[arg(short, long, required_unless_present = "stdin", conflicts_with = "stdin")]
+        #[arg(
+            short,
+            long,
+            required_unless_present = "stdin",
+            conflicts_with = "stdin"
+        )]
         input: Option<PathBuf>,
 
         /// Read unpacked content from stdin (newline-separated)
-        #[arg(short, long, required_unless_present = "input", conflicts_with = "input")]
+        #[arg(
+            short,
+            long,
+            required_unless_present = "input",
+            conflicts_with = "input"
+        )]
         stdin: bool,
     },
 

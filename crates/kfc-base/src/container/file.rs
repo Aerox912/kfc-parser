@@ -48,11 +48,7 @@ impl Default for KFCFile {
 }
 
 impl KFCFile {
-
-    pub fn from_path<P: AsRef<Path>>(
-        path: P,
-        skip_entries: bool
-    ) -> Result<Self, KFCReadError> {
+    pub fn from_path<P: AsRef<Path>>(path: P, skip_entries: bool) -> Result<Self, KFCReadError> {
         let file = File::open(path)?;
         let mut reader = BufReader::new(file);
         Self::read(&mut reader, skip_entries)
@@ -65,9 +61,7 @@ impl KFCFile {
         Self::read(reader, skip_entries)
     }
 
-    pub fn get_version_tag<P: AsRef<Path>>(
-        path: P
-    ) -> Result<String, KFCReadError> {
+    pub fn get_version_tag<P: AsRef<Path>>(path: P) -> Result<String, KFCReadError> {
         let file = File::open(path)?;
         let mut reader = BufReader::new(file);
         let header = KFCHeader::read(&mut reader)?;
@@ -146,30 +140,25 @@ impl KFCFile {
         self.rebuild_resource_bundles(type_registry, internal_hash_fallback)
     }
 
-    pub fn set_resource_chunks(
-        &mut self,
-        chunks: Vec<ResourceChunkInfo>
-    ) {
+    pub fn set_resource_chunks(&mut self, chunks: Vec<ResourceChunkInfo>) {
         self.resource_chunks = chunks;
-        self.resource_locations[0].uncompressed_size = self.resource_chunks.iter()
+        self.resource_locations[0].uncompressed_size = self
+            .resource_chunks
+            .iter()
             .map(|chunk| chunk.uncompressed_size)
             .sum();
-        self.resource_locations[0].compressed_size = self.resource_chunks.iter()
+        self.resource_locations[0].compressed_size = self
+            .resource_chunks
+            .iter()
             .map(|chunk| chunk.compressed_size)
             .sum();
     }
 
-    pub fn set_contents(
-        &mut self,
-        contents: StaticMap<ContentHash, ContentEntry>
-    ) {
+    pub fn set_contents(&mut self, contents: StaticMap<ContentHash, ContentEntry>) {
         self.contents = contents;
     }
 
-    pub fn set_containers(
-        &mut self,
-        containers: Vec<ContainerInfo>
-    ) {
+    pub fn set_containers(&mut self, containers: Vec<ContainerInfo>) {
         self.containers = containers;
     }
 
@@ -190,11 +179,14 @@ impl KFCFile {
             .collect::<HashSet<_>>()
             .into_iter()
             .map(|hash| {
-                let internal_hash = type_registry.get_by_hash(LookupKey::Qualified(hash))
+                let internal_hash = type_registry
+                    .get_by_hash(LookupKey::Qualified(hash))
                     .map(|info| info.internal_hash)
-                    .or_else(|| internal_hash_fallback
-                        .and_then(|map| map.get(&hash))
-                        .map(|entry| entry.internal_hash))
+                    .or_else(|| {
+                        internal_hash_fallback
+                            .and_then(|map| map.get(&hash))
+                            .map(|entry| entry.internal_hash)
+                    })
                     .ok_or(KFCWriteError::UnknownTypeHash(hash))?;
 
                 Ok((
@@ -230,11 +222,9 @@ impl KFCFile {
 
         Ok(())
     }
-
 }
 
 impl KFCFile {
-
     fn read<R: Read + Seek>(reader: &mut R, skip_entries: bool) -> Result<Self, KFCReadError> {
         let header = KFCHeader::read(reader)?;
 
@@ -327,7 +317,11 @@ impl KFCFile {
 
                 contents: StaticMap::from_parts(content_keys, content_values, content_buckets)?,
                 resources: StaticMap::from_parts(resource_keys, resource_values, resource_buckets)?,
-                resource_bundles: StaticMap::from_parts(resource_bundle_keys, resource_bundle_values, resource_bundle_buckets)?,
+                resource_bundles: StaticMap::from_parts(
+                    resource_bundle_keys,
+                    resource_bundle_values,
+                    resource_bundle_buckets,
+                )?,
 
                 resource_chunks,
             })
@@ -455,19 +449,37 @@ impl KFCFile {
                 resource_locations_offset,
                 self.resource_locations.len(),
             ),
-            resource_indices: KFCLocation::new(resource_indices_offset, self.resource_indices.len()),
+            resource_indices: KFCLocation::new(
+                resource_indices_offset,
+                self.resource_indices.len(),
+            ),
 
-            content_buckets: KFCLocation::new(content_buckets_offset, self.contents.buckets().len()),
+            content_buckets: KFCLocation::new(
+                content_buckets_offset,
+                self.contents.buckets().len(),
+            ),
             content_keys: KFCLocation::new(content_keys_offset, self.contents.len()),
             content_values: KFCLocation::new(content_values_offset, self.contents.len()),
 
-            resource_buckets: KFCLocation::new(resource_buckets_offset, self.resources.buckets().len()),
+            resource_buckets: KFCLocation::new(
+                resource_buckets_offset,
+                self.resources.buckets().len(),
+            ),
             resource_keys: KFCLocation::new(resource_keys_offset, self.resources.len()),
             resource_values: KFCLocation::new(resource_values_offset, self.resources.len()),
 
-            resource_bundle_buckets: KFCLocation::new(resource_bundle_buckets_offset, self.resource_bundles.buckets().len()),
-            resource_bundle_keys: KFCLocation::new(resource_bundle_keys_offset, self.resource_bundles.len()),
-            resource_bundle_values: KFCLocation::new(resource_bundle_values_offset, self.resource_bundles.len()),
+            resource_bundle_buckets: KFCLocation::new(
+                resource_bundle_buckets_offset,
+                self.resource_bundles.buckets().len(),
+            ),
+            resource_bundle_keys: KFCLocation::new(
+                resource_bundle_keys_offset,
+                self.resource_bundles.len(),
+            ),
+            resource_bundle_values: KFCLocation::new(
+                resource_bundle_values_offset,
+                self.resource_bundles.len(),
+            ),
 
             resource_chunks: KFCLocation::new(resource_chunks_offset, self.resource_chunks.len()),
         };
@@ -479,5 +491,4 @@ impl KFCFile {
 
         Ok(())
     }
-
 }

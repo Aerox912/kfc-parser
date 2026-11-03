@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::cmp::max;
 use std::collections::HashMap;
 
-use kfc::hash::fnv;
 use kfc::guid::ContentHash;
+use kfc::hash::fnv;
 use kfc::reflection::{LookupKey, TypeRegistry};
 
 use crate::hash_types::HashKey32;
@@ -64,7 +64,9 @@ impl ImpactProgramData {
                 let parent_type = type_collection
                     .get_by_name(LookupKey::Qualified(&entry.r#type))
                     .unwrap(); // already checked
-                let field_name = parent_type.struct_fields.values()
+                let field_name = parent_type
+                    .struct_fields
+                    .values()
                     .find(|x| x.data_offset == field_offset)
                     .map(|x| x.name.clone())
                     .ok_or_else(|| anyhow::anyhow!("Field not found: {}", layout.dbg_name))?;
@@ -77,7 +79,7 @@ impl ImpactProgramData {
                     parent: Some(ImpactProgramDataMapping {
                         parent_name: entry.name.clone(),
                         name: layout.dbg_name.clone(),
-                        field_name
+                        field_name,
                     }),
                 });
             } else {
@@ -85,7 +87,7 @@ impl ImpactProgramData {
                     type_collection,
                     type_info,
                     &program.data[start..end],
-                    ConversionOptions::HUMAN_READABLE
+                    ConversionOptions::HUMAN_READABLE,
                 )?;
 
                 data_entries.push(ImpactProgramDataEntry {
@@ -138,13 +140,16 @@ impl ImpactProgramData {
 
             if let Some(mapping) = entry.parent {
                 let parent_hash = fnv(&mapping.parent_name);
-                let parent_entry = data_layout.iter()
+                let parent_entry = data_layout
+                    .iter()
                     .find(|x| x.name.value == parent_hash)
                     .ok_or_else(|| anyhow::anyhow!("Parent not found: {}", mapping.parent_name))?;
                 let parent_type = type_collection
                     .get_by_hash(LookupKey::Impact(parent_entry.r#type.value))
                     .unwrap(); // already checked
-                let field = parent_type.struct_fields.values()
+                let field = parent_type
+                    .struct_fields
+                    .values()
                     .find(|x| x.name == mapping.field_name)
                     .ok_or_else(|| anyhow::anyhow!("Field not found: {}", mapping.field_name))?;
 
@@ -160,11 +165,9 @@ impl ImpactProgramData {
                 buf.clear();
 
                 if !entry.data.is_none() {
-                    entry.data.write_into(
-                        type_collection,
-                        type_info,
-                        &mut buf
-                    )?;
+                    entry
+                        .data
+                        .write_into(type_collection, type_info, &mut buf)?;
                 } else {
                     buf.resize(type_info.size as usize, 0);
                 }
@@ -200,5 +203,4 @@ impl ImpactProgramData {
             query_call_ids,
         })
     }
-
 }

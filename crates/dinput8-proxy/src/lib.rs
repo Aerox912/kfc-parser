@@ -1,6 +1,8 @@
 pub mod logging;
 mod init;
 mod log;
+#[cfg(feature="sf-static-startup")]
+mod provider;
 
 use std::{arch::naked_asm, ffi::{c_void, CStr}, panic::PanicHookInfo, ptr};
 use std::ffi::CString;
@@ -45,7 +47,22 @@ macro_rules! forward {
     };
 }
 
+#[cfg(not(feature="sf-static-startup"))]
 forward!(DirectInput8Create, 0);
+#[cfg(feature="sf-static-startup")]
+static PROVIDER:provider::Provider=provider::Provider::new();
+#[cfg(feature="sf-static-startup")]
+static PROXY:std::sync::atomic::AtomicUsize=std::sync::atomic::AtomicUsize::new(0);
+#[cfg(feature="sf-static-startup")]
+#[unsafe(no_mangle)]
+unsafe extern "system" fn ShroudforgeSetDinput8Provider(module:*mut c_void)->i32 {
+    unsafe{PROVIDER.register(module,PROXY.load(std::sync::atomic::Ordering::Acquire) as *mut c_void)}
+}
+#[cfg(feature="sf-static-startup")]
+#[unsafe(no_mangle)]
+unsafe extern "system" fn DirectInput8Create(instance:*mut c_void,version:u32,iid:*const c_void,out:*mut *mut c_void,outer:*mut c_void)->i32 {
+    unsafe{PROVIDER.forward(M_PROCS[0] as usize,instance,version,iid,out,outer)}
+}
 forward!(DllCanUnloadNow,    1);
 forward!(DllGetClassObject,  2);
 forward!(DllRegisterServer,  3);
@@ -61,6 +78,8 @@ extern "system" fn DllMain(
     #[allow(non_snake_case)] // false positive
     match reason {
         DLL_PROCESS_ATTACH => {
+            #[cfg(feature="sf-static-startup")]
+            PROXY.store(_hinst.0 as usize,std::sync::atomic::Ordering::Release);
             std::panic::set_hook(Box::new(panic_handler));
 
             match unsafe { init_procs() } {

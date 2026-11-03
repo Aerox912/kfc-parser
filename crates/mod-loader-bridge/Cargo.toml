@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
+[features]
+default = []
+sf-static-startup = []
+
 [dependencies]
 # Read only the existing ShroudForge modloader selector. Missing config preserves EML startup.
 serde_json.workspace = true

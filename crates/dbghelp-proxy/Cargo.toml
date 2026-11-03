@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 rust-version = "1.88"
 
+[features]
+default = []
+sf-static-startup = ["mod-loader-bridge/sf-static-startup"]
+
 [lib]
 name = "dbghelp"
 crate-type = ["cdylib"]

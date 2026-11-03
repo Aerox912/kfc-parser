@@ -68,7 +68,7 @@ extern "system" fn DllMain(
                     // EML versus ShroudForge: the bridge selects the owner once. EML
                     // runs the original initialization below. ShroudForge loads its
                     // own bootstrap and must not also start EML in this proxy.
-                    match mod_loader_bridge::try_start() {
+                    match unsafe { mod_loader_bridge::try_start(_hinst.0, _reserved) } {
                         mod_loader_bridge::Handoff::Started => {}
                         mod_loader_bridge::Handoff::EmlSelected => {
                             let enable_console = std::env::var("EML_CONSOLE")
